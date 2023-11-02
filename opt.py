@@ -1,4 +1,5 @@
 import time
+import math
 
 import torch
 import torch.nn as nn
@@ -176,7 +177,7 @@ def opt_eval(model, testenc, dev):
     attention_mask = cache['attention_mask']
 
     for i in range(len(layers)):
-        print(i)
+        # print(i)
         layer = layers[i].to(dev)
 
         if args.nearest:
@@ -242,6 +243,7 @@ def opt_pack3(model, quantizers):
     return model
 
 def load_quant3(model, checkpoint):
+    import transformers
     from transformers import OPTConfig, OPTForCausalLM 
     config = OPTConfig.from_pretrained(model)
     def noop(*args, **kwargs):
@@ -305,6 +307,7 @@ def opt_multigpu(model, gpus):
 
     model.gpus = gpus
 
+@torch.no_grad()
 def benchmark(model, input_ids, check=False):
     input_ids = input_ids.to(model.gpus[0] if hasattr(model, 'gpus') else DEV)
     torch.cuda.synchronize()
@@ -330,28 +333,48 @@ def benchmark(model, input_ids, check=False):
                 torch.cuda.synchronize(gpu)
         else:
             torch.cuda.synchronize()
-    with torch.no_grad():
-        attention_mask = torch.ones((1, input_ids.numel()), device=DEV)
-        times = []
-        for i in range(input_ids.numel()):
-            tick = time.time()
-            out = model(
-                input_ids[:, i].reshape((1,-1)),
-                past_key_values=cache['past'],
-                attention_mask=attention_mask[:, :(i + 1)].reshape((1, -1))
-            )
-            sync()
-            times.append(time.time() - tick)
-            print(i, times[-1])
-            if check and i != input_ids.numel() - 1:
-                tot += loss(out.logits[0].to(DEV), input_ids[:, (i + 1)].to(DEV)).float()
-            cache['past'] = list(out.past_key_values)
-            del out
+            
+
+    attention_mask = torch.ones((1, input_ids.numel()), device=DEV)
+    times = []
+
+    for _ in range(100): #warmup
+        out = model(
+            input_ids[:, 0].reshape((1,-1)),
+            past_key_values=cache['past'],
+            attention_mask=attention_mask[:, :1].reshape((1, -1))
+        )
         sync()
-        import numpy as np
-        print('Median:', np.median(times))
-        if check:
-            print('PPL:', torch.exp(tot / (input_ids.numel() - 1)).item())
+
+    with torch.autograd.profiler.profile(enabled=True, use_cuda=True, record_shapes=False, profile_memory=False, with_stack=True) as prof:
+        out = model(
+            input_ids[:, 0].reshape((1,-1)),
+            past_key_values=cache['past'],
+            attention_mask=attention_mask[:, :1].reshape((1, -1))
+        )
+        sync()
+    prof.export_chrome_trace("./weight/profile/torch_trace.json")
+
+
+    for i in range(input_ids.numel()):
+        tick = time.time()
+        out = model(
+            input_ids[:, i].reshape((1,-1)),
+            past_key_values=cache['past'],
+            attention_mask=attention_mask[:, :(i + 1)].reshape((1, -1))
+        )
+        sync()
+        times.append(time.time() - tick)
+        # print(i, times[-1])
+        if check and i != input_ids.numel() - 1:
+            tot += loss(out.logits[0].to(DEV), input_ids[:, (i + 1)].to(DEV)).float()
+        cache['past'] = list(out.past_key_values)
+        del out
+    sync()
+    import numpy as np
+    print('Median:', np.median(times))
+    if check:
+        print('PPL:', torch.exp(tot / (input_ids.numel() - 1)).item())
 
 
 if __name__ == '__main__':
@@ -440,12 +463,13 @@ if __name__ == '__main__':
     else:
         model = get_opt(args.model)
         model.eval()
+    print(model)
 
     dataloader, testloader = get_loaders(
         args.dataset, nsamples=args.nsamples, seed=args.seed, model=args.model, seqlen=model.seqlen
     )
 
-    if args.wbits < 16 and not args.nearest:
+    if args.wbits < 16 and not args.nearest and not args.load:
         tick = time.time()
         quantizers = opt_sequential(model, dataloader, DEV)
         print(time.time() - tick)
@@ -459,18 +483,21 @@ if __name__ == '__main__':
         if args.benchmark:
             input_ids = next(iter(dataloader))[0][:, :args.benchmark]
             benchmark(model, input_ids, check=args.check)
+            
     if args.load:
         exit()
 
-    datasets = ['wikitext2', 'ptb', 'c4'] 
-    if args.new_eval:
-      datasets = ['wikitext2', 'ptb-new', 'c4-new']
-    for dataset in datasets: 
-        dataloader, testloader = get_loaders(
-            dataset, seed=args.seed, model=args.model, seqlen=model.seqlen
-        )
-        print(dataset)
-        opt_eval(model, testloader, DEV)
+    # datasets = ['wikitext2', 'ptb', 'c4'] 
+    # if args.new_eval:
+    #   datasets = ['wikitext2', 'ptb-new', 'c4-new']
+    # for dataset in datasets: 
+    #     dataloader, testloader = get_loaders(
+    #         dataset, seed=args.seed, model=args.model, seqlen=model.seqlen
+    #     )
+    #     print(dataset)
+    #     opt_eval(model, testloader, DEV)
+    print(args.dataset)
+    opt_eval(model, testloader, DEV)
 
     if args.save:
         opt_pack3(model, quantizers)
