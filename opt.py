@@ -8,6 +8,7 @@ from gptq import *
 from modelutils import *
 from quant import *
 
+from bcq_quant.quant_model_bcq import quant_model
 
 def get_opt(model):
     import torch
@@ -408,7 +409,7 @@ if __name__ == '__main__':
         help='Whether to run the RTN baseline.'
     ) 
     parser.add_argument(
-        '--wbits', type=int, default=16, choices=[2, 3, 4, 16],
+        '--wbits', type=int, default=16, choices=[1, 2, 3, 4, 16],
         help='#bits to use for quantization; use 16 for evaluating base model.'
     )
     parser.add_argument(
@@ -456,6 +457,13 @@ if __name__ == '__main__':
         help='Whether to use static groups; recommended when using `--actorder` for more efficient inference.'
     )
 
+    # bcq quant - LUT-gemm
+
+    parser.add_argument(
+        '--bcq', action='store_true',
+        help='Whether to use static groups; recommended when using `--actorder` for more efficient inference.'
+    )
+
     args = parser.parse_args()
 
     if args.load:
@@ -471,7 +479,10 @@ if __name__ == '__main__':
 
     if args.wbits < 16 and not args.nearest and not args.load:
         tick = time.time()
-        quantizers = opt_sequential(model, dataloader, DEV)
+        if args.bcq:
+            model = quant_model(model, qbits=args.wbits, group_size=args.groupsize)
+        else:
+            quantizers = opt_sequential(model, dataloader, DEV)
         print(time.time() - tick)
 
     if args.benchmark:

@@ -6,12 +6,13 @@ import torch.nn as nn
 import transformers
 
 from quant import *
-
+from bcq_quant.bcq_parameter import BCQParameter
 
 DEBUG = False 
 
 torch.backends.cuda.matmul.allow_tf32 = False
 torch.backends.cudnn.allow_tf32 = False
+
 
 
 class GPTQ:
@@ -160,6 +161,7 @@ class GPTQ:
         self.layer.weight.data = Q.reshape(self.layer.weight.shape).to(self.layer.weight.data.dtype)
         if DEBUG:
             print(torch.sum((self.layer(self.inp1) - self.out1) ** 2))
+
 
     def free(self):
         if DEBUG:
