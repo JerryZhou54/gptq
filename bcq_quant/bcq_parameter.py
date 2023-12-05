@@ -53,7 +53,7 @@ class BCQTunedParameter:
         pass
 
 if __name__ == '__main__':
-    w_org = torch.randn(128, 3)
+    w_org = torch.randn(12288, 12288)
 
     w_bcq = BCQParameter(w_org)
     alpha, binary, binary_shape = w_bcq.compress(do_packing=False, in_ch_wise=True, qbits=4, rounds=15, group_size=128)

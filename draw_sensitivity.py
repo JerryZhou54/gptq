@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 # import data
-model_name = "opt-6.7b"
+model_name = "opt-13b"
 model_name_3bit = f"{model_name}-3bit"
 model_name_4bit = f"{model_name}-4bit"
 

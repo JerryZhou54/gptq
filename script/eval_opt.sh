@@ -1,9 +1,10 @@
 
 CUDA_VISIBLE_DEVICES=0 python opt.py \
-    facebook/opt-350m \
+    facebook/opt-13b \
     wikitext2 \
     --wbits 3 \
-    --linearmix \
+    --linearmix
+    # --linearmix \
     # --layermix
     # --benchmark 128 
 
