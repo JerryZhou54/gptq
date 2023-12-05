@@ -1,0 +1,6 @@
+{"k_proj": 4,
+ "q_proj": 4, 
+ "v_proj": 3, 
+ "out_proj": 3, 
+ "fc1": 4, 
+ "fc2": 3}

@@ -154,9 +154,9 @@ class GPTQ:
         print('time %.2f' % (time.time() - tick))
         print('error', torch.sum(Losses).item())
 
-        # save name and error to file
-        with open(f'./sensitivity/{model_name}.txt', 'a+') as f:
-            f.write(layer_name + ': ' + str(torch.sum(Losses).item()) + '\n')
+        # save layername and error to file
+        with open(f"sensitivity/{model_name}.txt", "a+") as f:
+            f.write(f"{layer_name}: {str(torch.sum(Losses).item())}\n")
 
         if actorder:
             Q = Q[:, invperm]

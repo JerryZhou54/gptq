@@ -116,6 +116,8 @@ class Quantizer(nn.Module):
             self.scale = self.scale.unsqueeze(0)
             self.zero = self.zero.unsqueeze(0)
 
+        
+
     def quantize(self, x):
         if self.ready():
             return quantize(x, self.scale, self.zero, self.maxq)

@@ -1,15 +1,19 @@
 
-# CUDA_VISIBLE_DEVICES=0 python opt.py \
-#     facebook/opt-350m \
-#     wikitext2 \
-#     --benchmark 128 
-
-CUDA_VISIBLE_DEVICES=2,3,4,5 python opt.py \
-    facebook/opt-30b \
+CUDA_VISIBLE_DEVICES=0 python opt.py \
+    facebook/opt-13b \
     wikitext2 \
     --wbits 3 \
-    --groupsize 128 \
-    --bcq
+    --linearmix
+    # --linearmix \
+    # --layermix
+    # --benchmark 128 
+
+# CUDA_VISIBLE_DEVICES=2,3,4,5 python opt.py \
+#     facebook/opt-30b \
+#     wikitext2 \
+#     --wbits 3 \
+#     --groupsize 128 \
+#     --bcq
 #     --save weight/opt350m-3bit.pt
 
 
@@ -29,7 +33,7 @@ CUDA_VISIBLE_DEVICES=2,3,4,5 python opt.py \
 #     --benchmark 128 
 
 # CUDA_VISIBLE_DEVICES=0 python opt.py \
-#     facebook/opt-125m \
+#     facebook/opt-13b \
 #     wikitext2 \
 #     --wbits 3 \
 #     --save weight/opt125m-3bit.pt

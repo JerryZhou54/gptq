@@ -73,6 +73,20 @@ def opt_sequential(model, dataloader, dev):
     outs = torch.zeros_like(inps)
     attention_mask = cache['attention_mask']
 
+    if args.layermix:
+        import json
+        with open("./quant_bit/layerwise.json", "r") as f:
+            layer_wbit_dict = json.load(f)
+            model_name = str(args.model).split("/")[-1]
+            layer_wbit = layer_wbit_dict[model_name]
+        print(f"layer_wbit: {layer_wbit}")
+    
+    if args.linearmix:
+        import json
+        with open("./quant_bit/linearwise.json", "r") as f:
+            linear_wbit = json.load(f)
+        print(f"linear_wbit: {linear_wbit}")
+
     print('Ready.')
 
     quantizers = {}
@@ -84,9 +98,18 @@ def opt_sequential(model, dataloader, dev):
         for name in subset:
             gptq[name] = GPTQ(subset[name])
             gptq[name].quantizer = Quantizer()
-            gptq[name].quantizer.configure(
-                args.wbits, perchannel=True, sym=args.sym, mse=False, trits=args.trits
-            )
+            if args.layermix:
+                gptq[name].quantizer.configure(
+                    layer_wbit[i], perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                )
+            elif args.linearmix:
+                gptq[name].quantizer.configure(
+                    linear_wbit[name.split(".")[-1]], perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                )
+            else:
+                gptq[name].quantizer.configure(
+                    args.wbits, perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                )
 
         def add_batch(name):
             def tmp(_, inp, out):
@@ -104,7 +127,7 @@ def opt_sequential(model, dataloader, dev):
             print(i, name)
             print('Quantizing ...')
             gptq[name].fasterquant(
-                percdamp=args.percdamp, groupsize=args.groupsize, actorder=args.act_order, static_groups=args.static_groups, model_name=str(args.model).split("/")[-1], layer_name=name
+                percdamp=args.percdamp, groupsize=args.groupsize, actorder=args.act_order, static_groups=args.static_groups, model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}"
             )
             quantizers['model.decoder.layers.%d.%s' % (i, name)] = gptq[name].quantizer
             gptq[name].free()
@@ -461,7 +484,16 @@ if __name__ == '__main__':
 
     parser.add_argument(
         '--bcq', action='store_true',
-        help='Whether to use static groups; recommended when using `--actorder` for more efficient inference.'
+    )
+
+    # mix precision
+    parser.add_argument(
+        '--linearmix', action='store_true',
+        help='Whether to use different wbit for different linear type.'
+    )
+    parser.add_argument(
+        '--layermix', action='store_true',
+        help='Whether to use different wbit for different layer.'
     )
 
     args = parser.parse_args()
