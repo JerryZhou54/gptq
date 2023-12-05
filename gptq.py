@@ -1,5 +1,6 @@
 import math
 import time
+import os
 
 import torch
 import torch.nn as nn
@@ -59,7 +60,7 @@ class GPTQ:
         self.H += inp.matmul(inp.t())
 
     def fasterquant(
-        self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, static_groups=False
+        self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, static_groups=False, model_name = "opt", layer_name = "layer"
     ):
         W = self.layer.weight.data.clone()
         if isinstance(self.layer, nn.Conv2d):
@@ -152,6 +153,10 @@ class GPTQ:
         torch.cuda.synchronize()
         print('time %.2f' % (time.time() - tick))
         print('error', torch.sum(Losses).item())
+
+        # save name and error to file
+        with open(f'./sensitivity/{model_name}.txt', 'a+') as f:
+            f.write(layer_name + ': ' + str(torch.sum(Losses).item()) + '\n')
 
         if actorder:
             Q = Q[:, invperm]

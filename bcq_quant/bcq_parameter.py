@@ -2,12 +2,13 @@ import torch
 import torch.nn as nn
 
 from .bcq import quantize
+from .bcq_shift import quantize_shift
 from .utils import CompressionParameter, PACKER
 
 class BCQParameter(CompressionParameter):
     def compress(self, do_packing=False, in_ch_wise=False, **kwargs):
         global PACKER
-        _, binary, alpha, _ = quantize(self.data, transpose=in_ch_wise, **kwargs)
+        _, binary, alpha, _ = quantize_shift(self.data, transpose=in_ch_wise, **kwargs)
 
         binary_shape = binary.shape
         if do_packing == True:

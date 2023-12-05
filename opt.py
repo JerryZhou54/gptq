@@ -104,7 +104,7 @@ def opt_sequential(model, dataloader, dev):
             print(i, name)
             print('Quantizing ...')
             gptq[name].fasterquant(
-                percdamp=args.percdamp, groupsize=args.groupsize, actorder=args.act_order, static_groups=args.static_groups
+                percdamp=args.percdamp, groupsize=args.groupsize, actorder=args.act_order, static_groups=args.static_groups, model_name=str(args.model).split("/")[-1], layer_name=name
             )
             quantizers['model.decoder.layers.%d.%s' % (i, name)] = gptq[name].quantizer
             gptq[name].free()
@@ -310,7 +310,7 @@ def opt_multigpu(model, gpus):
 
 @torch.no_grad()
 def benchmark(model, input_ids, check=False):
-    input_ids = input_ids.to(model.gpus[0] if hasattr(model, 'gpus') else DEV)
+    input_ids = input_ids.to(model.gpus[0] if hasattr(model, 'gpus') else DEV) # [1,128]
     torch.cuda.synchronize()
 
     cache = {'past': None}
@@ -493,6 +493,7 @@ if __name__ == '__main__':
             model = model.to(DEV)
         if args.benchmark:
             input_ids = next(iter(dataloader))[0][:, :args.benchmark]
+            print(input_ids.shape)
             benchmark(model, input_ids, check=args.check)
             
     if args.load:
