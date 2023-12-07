@@ -36,10 +36,12 @@ class LutLinear(nn.Module):
         pass
 
     def parsing(self):
-        device = self.binaryWeight.device
-        assert device != torch.device("cpu"), "Device should be cuda"
-        device = int(str(device).split(":")[-1])
-        self.bWeight_cal, self.alpha_cal, self.q_bias_cal = lutgemm.parsing(self.binaryWeight, self.alpha.view(-1), self.K, self.N, self.wbit, False, self.num_groups, self.q_bias.view(-1), device)
+        # device = self.binaryWeight.device
+        # assert device != torch.device("cpu"), "Device should be cuda"
+        # device = int(str(device).split(":")[-1])
+        # self.bWeight_cal, self.alpha_cal, self.q_bias_cal = lutgemm.parsing(self.binaryWeight, self.alpha.view(-1), self.K, self.N, self.wbit, False, self.num_groups, self.q_bias.view(-1), device)
+
+        self.bWeight_cal, self.alpha_cal, self.q_bias_cal = self.binaryWeight.view(-1), self.alpha.view(-1), self.q_bias.view(-1)
 
     def forward(self, x):
         if self.bWeight_cal is None or self.alpha_cal is None or self.q_bias_cal is None:
