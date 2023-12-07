@@ -12,12 +12,12 @@ print('Benchmarking OPT-175B FC2 matvec ...')
 
 DEV = torch.device('cuda:0')
 
-# M = 12288
-# N = 12288
+M = 12288
+N = 12288
 
 
-M = 768
-N = 768
+# M = 768
+# N = 768
 
 DTYPE = torch.half
 mat = torch.randn((M, N), device=DEV, dtype=DTYPE)

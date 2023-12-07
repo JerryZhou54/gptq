@@ -9,6 +9,7 @@ from modelutils import *
 from quant import *
 
 from bcq_quant.quant_model_bcq import quant_model
+from lut_gemm.quant import load_lut
 
 def get_opt(model):
     import torch
@@ -483,7 +484,10 @@ if __name__ == '__main__':
     # bcq quant - LUT-gemm
 
     parser.add_argument(
-        '--bcq', action='store_true',
+        '--bcq', action='store_true', help='Quantize weight with bcq.'
+    )
+    parser.add_argument(
+        '--lut_bench', action='store_true', help='Use Lut-Linear to test latency.'
     )
 
     # mix precision
@@ -500,6 +504,8 @@ if __name__ == '__main__':
 
     if args.load:
         model = load_quant3(args.model, args.load)
+    elif args.lut_bench:
+        model = load_lut(args.model, args.load, wbit=args.wbits, group_size=args.groupsize)
     else:
         model = get_opt(args.model)
         model.eval()
@@ -509,7 +515,7 @@ if __name__ == '__main__':
         args.dataset, nsamples=args.nsamples, seed=args.seed, model=args.model, seqlen=model.seqlen
     )
 
-    if args.wbits < 16 and not args.nearest and not args.load:
+    if args.wbits < 16 and not args.nearest and not args.load and not args.lut_bench:
         tick = time.time()
         if args.bcq:
             model = quant_model(model, qbits=args.wbits, group_size=args.groupsize)
@@ -523,12 +529,12 @@ if __name__ == '__main__':
             opt_multigpu(model, gpus)
         else:
             model = model.to(DEV)
-        if args.benchmark:
-            input_ids = next(iter(dataloader))[0][:, :args.benchmark]
-            print(input_ids.shape)
-            benchmark(model, input_ids, check=args.check)
+        
+        input_ids = next(iter(dataloader))[0][:, :args.benchmark]
+        print(input_ids.shape)
+        benchmark(model, input_ids, check=args.check)
             
-    if args.load:
+    if args.load or args.lut_bench:
         exit()
 
     # datasets = ['wikitext2', 'ptb', 'c4'] 

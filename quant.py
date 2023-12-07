@@ -213,3 +213,4 @@ def make_quant3(module, names, name='', faster=False):
             )
     for name1, child in module.named_children():
         make_quant3(child, names, name + '.' + name1 if name != '' else name1, faster=faster)
+
