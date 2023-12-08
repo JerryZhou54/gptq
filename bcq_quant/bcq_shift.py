@@ -82,8 +82,7 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     # greedy & alternating algo.
     ret, B, alpha = greedy_mean_torch(w_, n_bits=qbits, wf=wf)
     if rounds > 0 and qbits > 1:
-        # for _ in range(rounds):
-        for _ in tqdm(range(rounds)):
+        for _ in range(rounds):
             ret, B, alpha = refine_mean_torch(w_, ret, B, alpha, wf=wf, use_bst=use_bst)
 
     ret = ret.view(orig_shape) 
@@ -124,9 +123,9 @@ def greedy_mean_torch(w, n_bits=1, wf=None):
         B[:,:,i] = b
         Alpha[:,i] = alpha.view(-1)
     
-    del r, b, alpha
-    gc.collect()
-    torch.cuda.empty_cache()
+    # del r, b, alpha
+    # gc.collect()
+    # torch.cuda.empty_cache()
 
     return w_hat, B, Alpha
 

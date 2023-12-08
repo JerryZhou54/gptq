@@ -2,12 +2,13 @@ import math
 import time
 import os
 
+from tqdm import tqdm
 import torch
 import torch.nn as nn
 import transformers
 
 from quant import *
-from bcq_quant.bcq_parameter import BCQParameter
+from bcq_quant.bcq_shift import quantize_shift as bcq_quantize_shift, greedy_mean_torch, refine_mean_torch
 
 DEBUG = False 
 
@@ -60,7 +61,8 @@ class GPTQ:
         self.H += inp.matmul(inp.t())
 
     def fasterquant(
-        self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, static_groups=False, model_name = "opt", layer_name = "layer"
+        self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, static_groups=False, 
+        model_name = "opt", layer_name = "layer", lut_quant=False, wbit=3, bcq_round = 5
     ):
         W = self.layer.weight.data.clone()
         if isinstance(self.layer, nn.Conv2d):
@@ -105,7 +107,7 @@ class GPTQ:
         H = torch.linalg.cholesky(H, upper=True)
         Hinv = H
 
-        for i1 in range(0, self.columns, blocksize):
+        for i1 in tqdm(range(0, self.columns, blocksize), desc=layer_name, leave=False):
             i2 = min(i1 + blocksize, self.columns)
             count = i2 - i1
 
@@ -119,19 +121,39 @@ class GPTQ:
                 w = W1[:, i]
                 d = Hinv1[i, i]
 
-                if groupsize != -1:
-                    if not static_groups:
-                        if (i1 + i) % groupsize == 0:
-                            self.quantizer.find_params(W[:, (i1 + i):(i1 + i + groupsize)], weight=True)
-                    else:
-                        idx = i1 + i
-                        if actorder:
-                            idx = perm[idx]
-                        self.quantizer = groups[idx // groupsize]
+                if lut_quant:
+                    
+                    # w_ = w.unsqueeze(1).clone()
+                    # w_ = w_.cuda()
+                    # orig_shape = w_.shape
+                    # groupsize = groupsize if groupsize > 0 else orig_shape[-1]
+                    # w_ = w_.view([-1, groupsize])
+                    # wf = torch.ones_like(w_)
+                    # ret, B, alpha = greedy_mean_torch(w_, n_bits=wbit, wf=wf)
+                    # if bcq_round > 0 and wbit > 1:
+                    #     for _ in range(bcq_round):
+                    #         ret, B, alpha = refine_mean_torch(w_, ret, B, alpha, wf=wf)
+                    # ret = ret.view(orig_shape) 
+                    # q = ret.flatten()
 
-                q = quantize(
-                    w.unsqueeze(1), self.quantizer.scale, self.quantizer.zero, self.quantizer.maxq
-                ).flatten()
+                    q, _, _, _ = bcq_quantize_shift(w.unsqueeze(0), wbit, rounds=bcq_round, group_size=groupsize)
+                    q = q.flatten()
+
+                else:
+                    if groupsize != -1:
+                        if not static_groups:
+                            if (i1 + i) % groupsize == 0:
+                                self.quantizer.find_params(W[:, (i1 + i):(i1 + i + groupsize)], weight=True)
+                        else:
+                            idx = i1 + i
+                            if actorder:
+                                idx = perm[idx]
+                            self.quantizer = groups[idx // groupsize]
+
+                    q = quantize(
+                        w.unsqueeze(1), self.quantizer.scale, self.quantizer.zero, self.quantizer.maxq
+                    ).flatten()
+
                 Q1[:, i] = q
                 Losses1[:, i] = (w - q) ** 2 / d ** 2
 
@@ -155,8 +177,8 @@ class GPTQ:
         print('error', torch.sum(Losses).item())
 
         # save layername and error to file
-        with open(f"sensitivity/{model_name}.txt", "a+") as f:
-            f.write(f"{layer_name}: {str(torch.sum(Losses).item())}\n")
+        # with open(f"sensitivity/{model_name}.txt", "a+") as f:
+        #     f.write(f"{layer_name}: {str(torch.sum(Losses).item())}\n")
 
         if actorder:
             Q = Q[:, invperm]

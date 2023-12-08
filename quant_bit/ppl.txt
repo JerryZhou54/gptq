@@ -1,0 +1,8 @@
+model = opt-125m, wbits = 1, groupsize = -1, lut = True   :   7402.482421875
+model = opt-125m, wbits = 1, groupsize = 128, lut = True   :   5463.88330078125
+model = opt-125m, wbits = 2, groupsize = 128, lut = True   :   395.1955261230469
+model = opt-125m, wbits = 3, groupsize = -1, lut = True   :   95.70783996582031
+model = opt-125m, wbits = 3, groupsize = 256, lut = True   :   74.08432006835938
+model = opt-125m, wbits = 2, groupsize = 128, lut = True   :   395.1955261230469
+model = opt-350m, wbits = 3, groupsize = 256, lut = True   :   57.77021026611328
+model = opt-350m, wbits = 3, groupsize = -1, lut = True   :   91.08204650878906

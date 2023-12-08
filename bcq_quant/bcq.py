@@ -64,7 +64,7 @@ def quantize(w, qbits, rounds=15, group_size=-1, transpose=False, exponent=0.0, 
     ret, B, alpha = greedy_mean_torch(w_, n_bits=qbits, wf=wf)
     if rounds > 0 and qbits > 1:
         # for _ in range(rounds):
-        for _ in tqdm(range(rounds)):
+        for _ in range(rounds):
             ret, B, alpha = refine_mean_torch(w_, ret, B, alpha, wf=wf, use_bst=use_bst)
 
     ret = ret.view(orig_shape) 

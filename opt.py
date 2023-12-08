@@ -128,7 +128,10 @@ def opt_sequential(model, dataloader, dev):
             print(i, name)
             print('Quantizing ...')
             gptq[name].fasterquant(
-                percdamp=args.percdamp, groupsize=args.groupsize, actorder=args.act_order, static_groups=args.static_groups, model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}"
+                percdamp=args.percdamp, groupsize=args.groupsize, 
+                actorder=args.act_order, static_groups=args.static_groups, 
+                model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
+                lut_quant=args.lut_eval, wbit=args.wbits, bcq_round=args.bcq_round
             )
             quantizers['model.decoder.layers.%d.%s' % (i, name)] = gptq[name].quantizer
             gptq[name].free()
@@ -250,6 +253,8 @@ def opt_eval(model, testenc, dev):
         nlls.append(neg_log_likelihood)
     ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * model.seqlen))
     print(ppl.item())
+    with open("./quant_bit/ppl.txt", "a") as f:
+        f.write(f"model = {str(args.model).split('/')[-1]}, wbits = {args.wbits}, groupsize = {args.groupsize}, lut = {args.lut_eval}   :   {ppl.item()}\n")
 
     model.config.use_cache = use_cache
 
@@ -433,7 +438,7 @@ if __name__ == '__main__':
         help='Whether to run the RTN baseline.'
     ) 
     parser.add_argument(
-        '--wbits', type=int, default=16, choices=[1, 2, 3, 4, 16],
+        '--wbits', type=int, default=16, choices=[1, 2, 3, 4, 8, 16],
         help='#bits to use for quantization; use 16 for evaluating base model.'
     )
     parser.add_argument(
@@ -488,6 +493,13 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--lut_bench', action='store_true', help='Use Lut-Linear to test latency.'
+    )
+    parser.add_argument(
+        '--lut_eval', action='store_true', help='Use Lut-quantization to evaluate model.'
+    )
+    parser.add_argument(
+        '--bcq_round', type=int, default=5,
+        help='Steps to iterate bcq quantization.'
     )
 
     # mix precision

@@ -11,10 +11,10 @@
 
 
 CUDA_VISIBLE_DEVICES=1 python opt.py \
-    facebook/opt-125m \
+    facebook/opt-1.3b \
     wikitext2 \
-    --wbits 3 \
-    --groupsize 32 \
+    --wbits 4 \
+    --groupsize 256 \
     --benchmark 128 \
     --lut_bench
 
@@ -25,13 +25,6 @@ CUDA_VISIBLE_DEVICES=1 python opt.py \
 #     facebook/opt-6.7b \
 #     wikitext2 \
 #     --benchmark 128 
-
-# CUDA_VISIBLE_DEVICES=0 python opt.py \
-#     facebook/opt-6.7b \
-#     wikitext2 \
-#     --wbits 3 \
-#     --save weight/opt6.7b-3bit.pt
-
 
 # CUDA_VISIBLE_DEVICES=0 python opt.py \
 #     facebook/opt-6.7b \
