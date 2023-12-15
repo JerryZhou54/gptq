@@ -20,11 +20,24 @@ def get_shift_and_sign(x, rounding='deterministic'):
     
     return shift, sign    
 
-def round_power_of_2(x, rounding='deterministic'):
+def round_power_of_2(x, rounding='deterministic', q_bias=None):
+    if q_bias is not None:
+        q_bias = q_bias.unsqueeze(1).expand_as(x)
+        x = x - q_bias
     shift, sign = get_shift_and_sign(x, rounding)    
     x_rounded = (2.0 ** shift) * sign
+    if q_bias is not None:
+        x_rounded = x_rounded + q_bias
     return x_rounded
 
+
+def get_best_bias(x):
+    x = torch.abs(x)
+    assert len(x.shape) == 2, f'Weight shape should be [num, groupsize], but get: {x.shape}'
+    quanted_x = round_power_of_2(x)
+    bias = torch.mean(x, dim=1) - torch.mean(quanted_x, dim=1)
+
+    return bias
 
 @torch.inference_mode()
 def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent=0.0, clipping=1.0, pruning=0.0, use_bst=True):
@@ -79,28 +92,34 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
         w_[w_abs <= p_th] = 0.0
 
     wf = wf.to(w_.device)
-    # greedy & alternating algo.
+    
+    # get best quantize scale and bias
     ret, B, alpha = greedy_mean_torch(w_, n_bits=qbits, wf=wf)
+    q_bias = get_best_bias(alpha)
+
+    # greedy & alternating algo.
+    ret, B, alpha = greedy_mean_torch(w_, n_bits=qbits, wf=wf, q_bias=q_bias, shift = True)
     if rounds > 0 and qbits > 1:
         for _ in range(rounds):
             ret, B, alpha = refine_mean_torch(w_, ret, B, alpha, wf=wf, use_bst=use_bst)
 
+    ret = torch.einsum('ijl,il->ij', (B, alpha))
     ret = ret.view(orig_shape) 
     if transpose:
         ret = ret.transpose(1, 0).contiguous()
 
     del w_
-    
+
     B = B.reshape([orig_shape[0], orig_shape[1] // group_size, group_size, qbits])
     alpha = alpha.reshape([orig_shape[0], orig_shape[1] // group_size, qbits])
 
     B = B.to('cpu')
     alpha = alpha.to('cpu')
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
 
     return ret, B, alpha, (wf != 0.0)
 
-def greedy_mean_torch(w, n_bits=1, wf=None):
+def greedy_mean_torch(w, n_bits=1, wf=None, q_bias=0.0, shift = False):
     B = torch.zeros(w.shape + (n_bits,), device=w.device)
     Alpha = torch.zeros(w.shape[0], n_bits, device=w.device)
   
@@ -113,10 +132,12 @@ def greedy_mean_torch(w, n_bits=1, wf=None):
             alpha = (r.abs()*wf).sum(dim=1) / torch.sum(wf, dim=1)
             alpha[torch.isnan(alpha)] = 0.
             alpha = alpha.view(alpha.shape[0], 1)
-            alpha = round_power_of_2(alpha)
+            if shift:
+                alpha = round_power_of_2(alpha, q_bias=q_bias)
         else:
             alpha = r.abs().mean(dim=1, keepdim=True)
-            alpha = round_power_of_2(alpha)
+            if shift:
+                alpha = round_power_of_2(alpha, q_bias=q_bias)
         
         r -= b * alpha
         w_hat += b * alpha
@@ -142,7 +163,9 @@ def refine_mean_torch(w, w_hat, B, Alpha, wf=None, use_bst=True):
 
         Alpha_new = batch_cg_torch(B_cov, Btw, x=Alpha)
         Alpha_new, _ = Alpha_new.abs().sort(descending=True)
-        Alpha_new = round_power_of_2(Alpha_new)
+
+        q_bias = get_best_bias(Alpha_new)
+        Alpha_new = round_power_of_2(Alpha_new, q_bias=q_bias)
 
         if use_bst == False:
             r = w.clone()

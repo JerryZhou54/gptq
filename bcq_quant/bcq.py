@@ -78,7 +78,7 @@ def quantize(w, qbits, rounds=15, group_size=-1, transpose=False, exponent=0.0, 
 
     B = B.to('cpu')
     alpha = alpha.to('cpu')
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
 
     return ret, B, alpha, (wf != 0.0)
 
@@ -103,9 +103,9 @@ def greedy_mean_torch(w, n_bits=1, wf=None):
         B[:,:,i] = b
         Alpha[:,i] = alpha.view(-1)
     
-    del r, b, alpha
-    gc.collect()
-    torch.cuda.empty_cache()
+    # del r, b, alpha
+    # gc.collect()
+    # torch.cuda.empty_cache()
 
     return w_hat, B, Alpha
 

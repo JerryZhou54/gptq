@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
 
 # import data
-model_name = "opt-13b"
+model_name = "opt-2.7b"
 model_name_3bit = f"{model_name}-3bit"
-model_name_4bit = f"{model_name}-4bit"
+model_name_4bit = f"{model_name}"
 
 def to_layerwise(quant_loss):
     layerwise = {}
@@ -48,7 +48,7 @@ plt.bar(list(layerwise_3bit.keys()), list(layerwise_3bit.values()), align='cente
 plt.bar(list(layerwise_4bit.keys()), list(layerwise_4bit.values()), align='center', label='4-bit')
 plt.xlabel('Layer')
 plt.ylabel('quantization loss')
-plt.legend(['3-bit', '4-bit'])
+plt.legend(['column', 'group256'])
 plt.title(f'{model_name}-Layer-wise quantization loss')
 plt.savefig(f'./sensitivity/{model_name}-layerwise.png')
 plt.close()
@@ -58,7 +58,7 @@ plt.bar(list(linearwise_3bit.keys()), list(linearwise_3bit.values()), align='cen
 plt.bar(list(linearwise_4bit.keys()), list(linearwise_4bit.values()), align='center', label='4-bit')
 plt.xlabel('Layer')
 plt.ylabel('quantization loss')
-plt.legend(['3-bit', '4-bit'])
+plt.legend(['column', 'group256'])
 plt.title(f'{model_name}-LinearType-wise quantization loss')
 plt.savefig(f'./sensitivity/{model_name}-linearwise.png')
 plt.close()

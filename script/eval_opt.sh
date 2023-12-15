@@ -11,12 +11,12 @@
 
 
 CUDA_VISIBLE_DEVICES=1 python opt.py \
-    facebook/opt-1.3b \
+    facebook/opt-2.7b \
     wikitext2 \
-    --wbits 4 \
+    --wbits 3 \
     --groupsize 256 \
-    --benchmark 128 \
-    --lut_bench
+    # --benchmark 128 \
+    # --lut_bench
 
 
 # ====================================================================================================

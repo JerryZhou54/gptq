@@ -8,7 +8,9 @@ import torch.nn as nn
 import transformers
 
 from quant import *
-from bcq_quant.bcq_shift import quantize_shift as bcq_quantize_shift, greedy_mean_torch, refine_mean_torch
+from bcq_quant.bcq import quantize as bcq_quantize
+from bcq_quant.bcq_shift import quantize_shift as bcq_quantize_shift 
+from bcq_quant.bcq_shift import greedy_mean_torch, refine_mean_torch
 
 DEBUG = False 
 
@@ -136,6 +138,7 @@ class GPTQ:
                     # ret = ret.view(orig_shape) 
                     # q = ret.flatten()
 
+                    # q, _, _, _ = bcq_quantize(w.unsqueeze(0), wbit, rounds=bcq_round, group_size=groupsize)
                     q, _, _, _ = bcq_quantize_shift(w.unsqueeze(0), wbit, rounds=bcq_round, group_size=groupsize)
                     q = q.flatten()
 
@@ -177,8 +180,8 @@ class GPTQ:
         print('error', torch.sum(Losses).item())
 
         # save layername and error to file
-        # with open(f"sensitivity/{model_name}.txt", "a+") as f:
-        #     f.write(f"{layer_name}: {str(torch.sum(Losses).item())}\n")
+        with open(f"sensitivity/{model_name}.txt", "a+") as f:
+            f.write(f"{layer_name}: {str(torch.sum(Losses).item())}\n")
 
         if actorder:
             Q = Q[:, invperm]
