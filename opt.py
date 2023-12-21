@@ -127,12 +127,27 @@ def opt_sequential(model, dataloader, dev):
         for name in subset:
             print(i, name)
             print('Quantizing ...')
-            gptq[name].fasterquant(
-                percdamp=args.percdamp, groupsize=args.groupsize, 
-                actorder=args.act_order, static_groups=args.static_groups, 
-                model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                lut_quant=args.lut_eval, wbit=args.wbits, bcq_round=args.bcq_round
-            )
+            if args.layermix:
+                gptq[name].fasterquant(
+                    percdamp=args.percdamp, groupsize=args.groupsize, 
+                    actorder=args.act_order, static_groups=args.static_groups, 
+                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
+                    lut_quant=args.lut_eval, wbit=layer_wbit[i], bcq_round=args.bcq_round
+                )
+            elif args.linearmix:
+                gptq[name].fasterquant(
+                    percdamp=args.percdamp, groupsize=args.groupsize, 
+                    actorder=args.act_order, static_groups=args.static_groups, 
+                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
+                    lut_quant=args.lut_eval, wbit=linear_wbit[name.split(".")[-1]], bcq_round=args.bcq_round
+                )
+            else:
+                gptq[name].fasterquant(
+                    percdamp=args.percdamp, groupsize=args.groupsize, 
+                    actorder=args.act_order, static_groups=args.static_groups, 
+                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
+                    lut_quant=args.lut_eval, wbit=args.wbits, bcq_round=args.bcq_round
+                )
             quantizers['model.decoder.layers.%d.%s' % (i, name)] = gptq[name].quantizer
             gptq[name].free()
         for j in range(args.nsamples):
