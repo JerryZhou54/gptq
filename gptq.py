@@ -180,8 +180,8 @@ class GPTQ:
         print('error', torch.sum(Losses).item())
 
         # save layername and error to file
-        with open(f"sensitivity/{model_name}.txt", "a+") as f:
-            f.write(f"{layer_name}: {str(torch.sum(Losses).item())}\n")
+        # with open(f"sensitivity/{model_name}.txt", "a+") as f:
+        #     f.write(f"{layer_name}: {str(torch.sum(Losses).item())}\n")
 
         if actorder:
             Q = Q[:, invperm]

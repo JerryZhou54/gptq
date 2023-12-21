@@ -1,5 +1,5 @@
-CUDA_VISIBLE_DEVICES=2 python opt.py \
-    facebook/opt-30b \
+CUDA_VISIBLE_DEVICES=1 python opt.py \
+    facebook/opt-125m \
     wikitext2 \
     --wbits 3 \
     --groupsize -1 \
