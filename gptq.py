@@ -139,7 +139,7 @@ class GPTQ:
                     # q = ret.flatten()
 
                     # q, _, _, _ = bcq_quantize(w.unsqueeze(0), wbit, rounds=bcq_round, group_size=groupsize)
-                    q, _, _, _ = bcq_quantize_shift(w.unsqueeze(0), wbit, rounds=bcq_round, group_size=groupsize)
+                    q, B, alpha, _, scale = bcq_quantize_shift(w.unsqueeze(0), wbit, rounds=bcq_round, group_size=groupsize)
                     q = q.flatten()
 
                 else:

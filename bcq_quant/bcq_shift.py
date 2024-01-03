@@ -129,7 +129,7 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     ret, B, alpha = greedy_mean_torch(w_, n_bits=qbits, wf=wf, scale=scale, q_bias=None, shift = True)
     if rounds > 0 and qbits > 1:
         for _ in range(rounds):
-            ret, B, alpha = refine_mean_torch(w_, ret, B, alpha, wf=wf, use_bst=use_bst)
+            ret, B, alpha, scale = refine_mean_torch(w_, ret, B, alpha, wf=wf, use_bst=use_bst)
 
     ret = torch.einsum('ijl,il->ij', (B, alpha))
     ret = ret.view(orig_shape) 
@@ -145,7 +145,7 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     alpha = alpha.to('cpu')
     # torch.cuda.empty_cache()
 
-    return ret, B, alpha, (wf != 0.0)
+    return ret, B, alpha, (wf != 0.0), scale
 
 def greedy_mean_torch(w, n_bits=1, wf=None, q_bias=None, scale=None, shift = False):
     B = torch.zeros(w.shape + (n_bits,), device=w.device)
@@ -209,7 +209,7 @@ def refine_mean_torch(w, w_hat, B, Alpha, wf=None, use_bst=True):
             B_new = B_new * (wf != 0.0).unsqueeze(-1)
         w_hat_new = torch.einsum('ijl,il->ij', (B_new, Alpha_new))
 
-    return w_hat_new, B_new, Alpha_new
+    return w_hat_new, B_new, Alpha_new, scale
 
 def list_binary_vecs(n):
     ListBinaryVecs = {0 : [[]]}

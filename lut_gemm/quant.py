@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 
 import lutgemm
+from bcq_quant.bcq_shift import quantize_shift
 
 class LutLinear(nn.Module): 
     def __init__(self, infeatures:int,
@@ -19,9 +20,9 @@ class LutLinear(nn.Module):
         self.wbit = wbit
         self.num_groups = self.K // group_size
 
-        self.register_buffer('binaryWeight', torch.zeros((self.K //32 , wbit, self.N), dtype=torch.int32))
-        self.register_buffer('alpha', torch.zeros((self.num_groups, wbit, self.N), dtype=torch.half))
-        self.register_buffer('q_bias', torch.zeros((self.num_groups, self.N), dtype=torch.half))
+        self.register_buffer('binaryWeight', torch.randint(-2147483648, 2147483647, (self.K //32 , wbit, self.N), dtype=torch.int32))
+        self.register_buffer('alpha', torch.randn((self.num_groups, wbit, self.N), dtype=torch.half))
+        self.register_buffer('scale', torch.randn((self.num_groups, self.N), dtype=torch.half))
 
         self.bWeight_cal = None
         self.alpha_cal = None
@@ -30,10 +31,11 @@ class LutLinear(nn.Module):
         # self.bias = None
         self.register_buffer('bias', torch.zeros(self.N, dtype=torch.half))
 
-    def pack(self, linear):
-        # TODO: do quantization here
-        self.bias = linear.bias.clone() if linear.bias is not None else torch.zeros(self.N, dtype=torch.half)
-        pass
+    # def pack(self, linear, qbit = 3, group_size = 128,):
+    #     # TODO: do quantization here
+    #     self.bias = linear.bias.clone() if linear.bias is not None
+        
+    #     _, intweight, alpha, _, scale = quantize_shift(linear.weight.data, qbits=qbit, group_size=group_size)
 
     def parsing(self):
         # device = self.binaryWeight.device
