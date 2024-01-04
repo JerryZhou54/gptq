@@ -129,6 +129,7 @@ def opt_sequential(model, dataloader, dev):
             print('Quantizing ...')
             if args.layermix:
                 gptq[name].fasterquant(
+                    blocksize=128,
                     percdamp=args.percdamp, groupsize=args.groupsize, 
                     actorder=args.act_order, static_groups=args.static_groups, 
                     model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
@@ -136,6 +137,7 @@ def opt_sequential(model, dataloader, dev):
                 )
             elif args.linearmix:
                 gptq[name].fasterquant(
+                    blocksize=128,
                     percdamp=args.percdamp, groupsize=args.groupsize, 
                     actorder=args.act_order, static_groups=args.static_groups, 
                     model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
@@ -143,6 +145,7 @@ def opt_sequential(model, dataloader, dev):
                 )
             else:
                 gptq[name].fasterquant(
+                    blocksize=128,
                     percdamp=args.percdamp, groupsize=args.groupsize, 
                     actorder=args.act_order, static_groups=args.static_groups, 
                     model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
@@ -564,17 +567,17 @@ if __name__ == '__main__':
     if args.load or args.lut_bench:
         exit()
 
-    # datasets = ['wikitext2', 'ptb', 'c4'] 
-    # if args.new_eval:
-    #   datasets = ['wikitext2', 'ptb-new', 'c4-new']
-    # for dataset in datasets: 
-    #     dataloader, testloader = get_loaders(
-    #         dataset, seed=args.seed, model=args.model, seqlen=model.seqlen
-    #     )
-    #     print(dataset)
-    #     opt_eval(model, testloader, DEV)
-    print(args.dataset)
-    opt_eval(model, testloader, DEV)
+    datasets = ['wikitext2', 'ptb', 'c4'] 
+    if args.new_eval:
+      datasets = ['wikitext2', 'ptb-new', 'c4-new']
+    for dataset in datasets: 
+        dataloader, testloader = get_loaders(
+            dataset, seed=args.seed, model=args.model, seqlen=model.seqlen
+        )
+        print(dataset)
+        opt_eval(model, testloader, DEV)
+    # print(args.dataset)
+    # opt_eval(model, testloader, DEV)
 
     if args.save:
         opt_pack3(model, quantizers)

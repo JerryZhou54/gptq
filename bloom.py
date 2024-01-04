@@ -9,6 +9,8 @@ from gptq import *
 from modelutils import *
 from quant import *
 
+from bcq_quant.quant_model_bcq import quant_model
+from lut_gemm.quant import load_lut
 
 def get_bloom(model):
     import torch
@@ -67,6 +69,20 @@ def bloom_sequential(model, dataloader, dev, means=None, stds=None):
     attention_mask = cache['attention_mask']
     alibi = cache['alibi']
 
+    if args.layermix:
+        import json
+        with open("./quant_bit/layerwise.json", "r") as f:
+            layer_wbit_dict = json.load(f)
+            model_name = str(args.model).split("/")[-1]
+            layer_wbit = layer_wbit_dict[model_name]
+        print(f"layer_wbit: {layer_wbit}")
+    
+    if args.linearmix:
+        import json
+        with open("./quant_bit/linearwise.json", "r") as f:
+            linear_wbit = json.load(f)
+        print(f"linear_wbit: {linear_wbit}")
+
     print('Ready.')
 
     quantizers = {}
@@ -78,9 +94,18 @@ def bloom_sequential(model, dataloader, dev, means=None, stds=None):
         for name in subset:
             gptq[name] = GPTQ(subset[name])
             gptq[name].quantizer = Quantizer()
-            gptq[name].quantizer.configure(
-                args.wbits, perchannel=True, sym=args.sym, mse=False
-            )
+            if args.layermix:
+                gptq[name].quantizer.configure(
+                    layer_wbit[i], perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                )
+            elif args.linearmix:
+                gptq[name].quantizer.configure(
+                    linear_wbit[name.split(".")[-1]], perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                )
+            else:
+                gptq[name].quantizer.configure(
+                    args.wbits, perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                )
 
         def add_batch(name):
             def tmp(_, inp, out):
@@ -97,7 +122,30 @@ def bloom_sequential(model, dataloader, dev, means=None, stds=None):
         for name in subset:
             print(i, name)
             print('Quantizing ...')
-            gptq[name].fasterquant(percdamp=args.percdamp, groupsize=args.groupsize)
+            if args.layermix:
+                gptq[name].fasterquant(
+                    blocksize=128,
+                    percdamp=args.percdamp, groupsize=args.groupsize, 
+                    actorder=args.act_order, static_groups=args.static_groups, 
+                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
+                    lut_quant=args.lut_eval, wbit=layer_wbit[i], bcq_round=args.bcq_round
+                )
+            elif args.linearmix:
+                gptq[name].fasterquant(
+                    blocksize=128,
+                    percdamp=args.percdamp, groupsize=args.groupsize, 
+                    actorder=args.act_order, static_groups=args.static_groups, 
+                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
+                    lut_quant=args.lut_eval, wbit=linear_wbit[name.split(".")[-1]], bcq_round=args.bcq_round
+                )
+            else:
+                gptq[name].fasterquant(
+                    blocksize=128,
+                    percdamp=args.percdamp, groupsize=args.groupsize, 
+                    actorder=args.act_order, static_groups=args.static_groups, 
+                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
+                    lut_quant=args.lut_eval, wbit=args.wbits, bcq_round=args.bcq_round
+                )
             quantizers['transformer.h.%d.%s' % (i, name)] = gptq[name].quantizer
         for j in range(args.nsamples):
             outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, alibi=alibi)[0]
@@ -162,7 +210,6 @@ def bloom_eval(model, testenc, dev):
     alibi = cache['alibi']
 
     for i in range(len(layers)):
-        print(i)
         layer = layers[i].to(dev)
 
         if args.nearest:
@@ -204,7 +251,8 @@ def bloom_eval(model, testenc, dev):
         nlls.append(neg_log_likelihood)
     ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * model.seqlen))
     print(ppl.item())
-
+    with open("./quant_bit/bloom_ppl.txt", "a") as f:
+        f.write(f"model = {str(args.model).split('/')[-1]}, wbits = {args.wbits}, groupsize = {args.groupsize}, lut = {args.lut_eval}   :   {ppl.item()}\n")
     model.config.use_cache = use_cache
 
 
@@ -272,13 +320,50 @@ if __name__ == '__main__':
         '--new-eval', action='store_true',
         help='Whether to use the new PTB and C4 eval'
     )
+    parser.add_argument(
+        '--trits', action='store_true',
+        help='Whether to use trits for quantization.'
+    )
+    parser.add_argument(
+        '--act-order', action='store_true',
+        help='Whether to apply the activation order GPTQ heuristic'
+    )
+    parser.add_argument(
+        '--static-groups', action='store_true',
+        help='Whether to use static groups; recommended when using `--actorder` for more efficient inference.'
+    )
+    # bcq quant - LUT-gemm
+
+    parser.add_argument(
+        '--bcq', action='store_true', help='Quantize weight with bcq.'
+    )
+    parser.add_argument(
+        '--lut_bench', action='store_true', help='Use Lut-Linear to test latency.'
+    )
+    parser.add_argument(
+        '--lut_eval', action='store_true', help='Use Lut-quantization to evaluate model.'
+    )
+    parser.add_argument(
+        '--bcq_round', type=int, default=5,
+        help='Steps to iterate bcq quantization.'
+    )
+
+    # mix precision
+    parser.add_argument(
+        '--linearmix', action='store_true',
+        help='Whether to use different wbit for different linear type.'
+    )
+    parser.add_argument(
+        '--layermix', action='store_true',
+        help='Whether to use different wbit for different layer.'
+    )
 
 
     args = parser.parse_args()
 
     model = get_bloom(args.model)
     model.eval()
-
+    print(model)
     dataloader, testloader = get_loaders(
         args.dataset, nsamples=args.nsamples, seed=args.seed, model=args.model, seqlen=model.seqlen
     )
