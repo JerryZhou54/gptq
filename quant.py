@@ -33,7 +33,7 @@ class Quantizer(nn.Module):
         if trits:
             self.maxq = torch.tensor(-1) 
 
-    def find_params(self, x, weight=False):
+    def find_params(self, x, weight=True):
         dev = x.device
         self.maxq = self.maxq.to(dev)
 

@@ -10,6 +10,7 @@ from quant import *
 
 from bcq_quant.quant_model_bcq import quant_model
 from lut_gemm.quant import load_lut
+from bcq_quant.quantizer import BCQuantizer
 
 def get_opt(model):
     import torch
@@ -98,19 +99,39 @@ def opt_sequential(model, dataloader, dev):
         gptq = {}
         for name in subset:
             gptq[name] = GPTQ(subset[name])
-            gptq[name].quantizer = Quantizer()
             if args.layermix:
-                gptq[name].quantizer.configure(
-                    layer_wbit[i], perchannel=True, sym=args.sym, mse=False, trits=args.trits
-                )
+                if args.lut_eval:
+                    gptq[name].quantizer = BCQuantizer(subset[name], 
+                                                       groupsize=args.groupsize, 
+                                                       wbits=layer_wbit[i],
+                                                       rounds=args.bcq_round)
+                else:
+                    gptq[name].quantizer = Quantizer()
+                    gptq[name].quantizer.configure(
+                        layer_wbit[i], perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                    )
             elif args.linearmix:
-                gptq[name].quantizer.configure(
-                    linear_wbit[name.split(".")[-1]], perchannel=True, sym=args.sym, mse=False, trits=args.trits
-                )
+                if args.lut_eval:
+                    gptq[name].quantizer = BCQuantizer(subset[name], 
+                                                       groupsize=args.groupsize, 
+                                                       wbits=linear_wbit[name.split(".")[-1]],
+                                                       rounds=args.bcq_round)
+                else:
+                    gptq[name].quantizer = Quantizer()
+                    gptq[name].quantizer.configure(
+                        linear_wbit[name.split(".")[-1]], perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                    )
             else:
-                gptq[name].quantizer.configure(
-                    args.wbits, perchannel=True, sym=args.sym, mse=False, trits=args.trits
-                )
+                if args.lut_eval:
+                    gptq[name].quantizer = BCQuantizer(subset[name], 
+                                                       groupsize=args.groupsize, 
+                                                       wbits=args.wbits,
+                                                       rounds=args.bcq_round)
+                else:
+                    gptq[name].quantizer = Quantizer()
+                    gptq[name].quantizer.configure(
+                        args.wbits, perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                    )
 
         def add_batch(name):
             def tmp(_, inp, out):
@@ -127,30 +148,13 @@ def opt_sequential(model, dataloader, dev):
         for name in subset:
             print(i, name)
             print('Quantizing ...')
-            if args.layermix:
-                gptq[name].fasterquant(
-                    blocksize=128,
-                    percdamp=args.percdamp, groupsize=args.groupsize, 
-                    actorder=args.act_order, static_groups=args.static_groups, 
-                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                    lut_quant=args.lut_eval, wbit=layer_wbit[i], bcq_round=args.bcq_round
-                )
-            elif args.linearmix:
-                gptq[name].fasterquant(
-                    blocksize=128,
-                    percdamp=args.percdamp, groupsize=args.groupsize, 
-                    actorder=args.act_order, static_groups=args.static_groups, 
-                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                    lut_quant=args.lut_eval, wbit=linear_wbit[name.split(".")[-1]], bcq_round=args.bcq_round
-                )
-            else:
-                gptq[name].fasterquant(
-                    blocksize=128,
-                    percdamp=args.percdamp, groupsize=args.groupsize, 
-                    actorder=args.act_order, static_groups=args.static_groups, 
-                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                    lut_quant=args.lut_eval, wbit=args.wbits, bcq_round=args.bcq_round
-                )
+            gptq[name].fasterquant(
+                blocksize=128,
+                percdamp=args.percdamp, groupsize=args.groupsize, 
+                actorder=args.act_order, static_groups=args.static_groups, 
+                model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
+                lut_quant=args.lut_eval
+            )
             quantizers['model.decoder.layers.%d.%s' % (i, name)] = gptq[name].quantizer
             gptq[name].free()
         for j in range(args.nsamples):

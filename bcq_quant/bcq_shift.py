@@ -125,7 +125,6 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     # q_bias = get_best_bias(alpha)
     scale = get_best_scale(alpha)
     # greedy & alternating algo.
-    # ret, B, alpha = greedy_mean_torch(w_, n_bits=qbits, wf=wf, q_bias=q_bias, shift = True)
     ret, B, alpha = greedy_mean_torch(w_, n_bits=qbits, wf=wf, scale=scale, q_bias=None, shift = True)
     if rounds > 0 and qbits > 1:
         for _ in range(rounds):
@@ -140,10 +139,12 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
 
     B = B.reshape([orig_shape[0], orig_shape[1] // group_size, group_size, qbits])
     alpha = alpha.reshape([orig_shape[0], orig_shape[1] // group_size, qbits])
+    scale = scale.reshape([orig_shape[0], orig_shape[1] // group_size])
 
-    B = B.to('cpu')
-    alpha = alpha.to('cpu')
-    # torch.cuda.empty_cache()
+    # B = B.to('cpu')
+    # alpha = alpha.to('cpu')
+    # scale = scale.to('cpu')
+    torch.cuda.empty_cache()
 
     return ret, B, alpha, (wf != 0.0), scale
 
@@ -195,6 +196,7 @@ def refine_mean_torch(w, w_hat, B, Alpha, wf=None, use_bst=True):
         # q_bias = get_best_bias(Alpha_new)
         # Alpha_new = round_power_of_2(Alpha_new, q_bias=q_bias)
         scale = get_best_scale(Alpha_new)
+        # scale = None
         Alpha_new = round_power_of_2(Alpha_new, scale=scale, q_bias=None)
 
         if use_bst == False:

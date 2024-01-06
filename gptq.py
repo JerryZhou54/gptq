@@ -8,9 +8,8 @@ import torch.nn as nn
 import transformers
 
 from quant import *
-from bcq_quant.bcq import quantize as bcq_quantize
-from bcq_quant.bcq_shift import quantize_shift as bcq_quantize_shift 
-from bcq_quant.bcq_shift import greedy_mean_torch, refine_mean_torch
+
+from bcq_quant.quantizer import quantize as bcq_quantize
 
 DEBUG = False 
 
@@ -64,7 +63,7 @@ class GPTQ:
 
     def fasterquant(
         self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, static_groups=False, 
-        model_name = "opt", layer_name = "layer", lut_quant=False, wbit=3, bcq_round = 5
+        model_name = "opt", layer_name = "layer", lut_quant=False
     ):
         W = self.layer.weight.data.clone()
         if isinstance(self.layer, nn.Conv2d):
@@ -76,7 +75,7 @@ class GPTQ:
         tick = time.time()
 
         if not self.quantizer.ready():
-            self.quantizer.find_params(W, weight=True)
+            self.quantizer.find_params(W)
 
         H = self.H
         del self.H
@@ -84,7 +83,7 @@ class GPTQ:
         H[dead, dead] = 1
         W[:, dead] = 0
 
-        if static_groups:
+        if static_groups and not lut_quant:
             import copy
             groups = []
             for i in range(0, self.columns, groupsize):
@@ -125,21 +124,15 @@ class GPTQ:
 
                 if lut_quant:
                     
-                    # w_ = w.unsqueeze(1).clone()
-                    # w_ = w_.cuda()
-                    # orig_shape = w_.shape
-                    # groupsize = groupsize if groupsize > 0 else orig_shape[-1]
-                    # w_ = w_.view([-1, groupsize])
-                    # wf = torch.ones_like(w_)
-                    # ret, B, alpha = greedy_mean_torch(w_, n_bits=wbit, wf=wf)
-                    # if bcq_round > 0 and wbit > 1:
-                    #     for _ in range(bcq_round):
-                    #         ret, B, alpha = refine_mean_torch(w_, ret, B, alpha, wf=wf)
-                    # ret = ret.view(orig_shape) 
-                    # q = ret.flatten()
-
-                    # q, _, _, _ = bcq_quantize(w.unsqueeze(0), wbit, rounds=bcq_round, group_size=groupsize)
-                    q, B, alpha, _, scale = bcq_quantize_shift(w.unsqueeze(0), wbit, rounds=bcq_round, group_size=groupsize)
+                    if groupsize != -1:
+                        idx = i1 + i
+                        if actorder:
+                            idx = perm[idx]
+                        group = idx // groupsize
+                    else:
+                        group = 0
+                    alpha = self.quantizer.alpha[:,group,:].unsqueeze(1)
+                    q, BinaryWeight = bcq_quantize(w.unsqueeze(1), alpha, groupsize=-1)
                     q = q.flatten()
 
                 else:
