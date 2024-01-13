@@ -10,7 +10,7 @@ import transformers
 from quant import *
 
 from bcq_quant.quantizer import quantize as bcq_quantize
-
+from bcq_quant.bcq_shift import quantize_shift
 DEBUG = False 
 
 torch.backends.cuda.matmul.allow_tf32 = False
@@ -58,12 +58,13 @@ class GPTQ:
         self.nsamples += tmp
         # inp = inp.float()
         inp = math.sqrt(2 / self.nsamples) * inp.float()
+        self.input = torch.mean(inp, 1)
         # self.H += 2 / self.nsamples * inp.matmul(inp.t())
         self.H += inp.matmul(inp.t())
 
     def fasterquant(
         self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, static_groups=False, 
-        model_name = "opt", layer_name = "layer", lut_quant=False
+        model_name = "opt", layer_name = "layer", lut_quant=False, non_linear_quant=False, columnwise=False
     ):
         W = self.layer.weight.data.clone()
         if isinstance(self.layer, nn.Conv2d):
@@ -74,21 +75,28 @@ class GPTQ:
 
         tick = time.time()
 
-        if not self.quantizer.ready():
-            self.quantizer.find_params(W)
-
         H = self.H
         del self.H
         dead = torch.diag(H) == 0
         H[dead, dead] = 1
         W[:, dead] = 0
 
+
+        # if not self.quantizer.ready():
+        #     if non_linear_quant:
+        #         self.quantizer.find_params(W, torch.diag(H))
+        #     else:
+        #         self.quantizer.find_params(W)
+
+        # if lut_quant:
+        #     print(self.quantizer.alpha[0:5,0,:])
+
         if static_groups and not lut_quant:
             import copy
             groups = []
             for i in range(0, self.columns, groupsize):
                 quantizer = copy.deepcopy(self.quantizer)
-                quantizer.find_params(W[:, i:(i + groupsize)], weight=True)
+                quantizer.find_params(W[:, i:(i + groupsize)])
                 groups.append(quantizer)
 
         if actorder:
@@ -107,6 +115,14 @@ class GPTQ:
         H = torch.cholesky_inverse(H)
         H = torch.linalg.cholesky(H, upper=True)
         Hinv = H
+        if not self.quantizer.ready():
+            if non_linear_quant:
+                self.quantizer.find_params(W, self.input.float())
+            else:
+                self.quantizer.find_params(W)
+
+        # if lut_quant:
+        #     print(self.quantizer.alpha[0:5,0,:])
 
         for i1 in tqdm(range(0, self.columns, blocksize), desc=layer_name, leave=False):
             i2 = min(i1 + blocksize, self.columns)
@@ -133,6 +149,22 @@ class GPTQ:
                         group = 0
                     alpha = self.quantizer.alpha[:,group,:].unsqueeze(1)
                     q, BinaryWeight = bcq_quantize(w.unsqueeze(1), alpha, groupsize=-1)
+                    q = q.flatten()
+                elif non_linear_quant:
+                    if groupsize != -1:
+                        if not static_groups:
+                            if (i1 + i) % groupsize == 0:
+                                self.quantizer.find_params(W[:, (i1 + i):(i1 + i + groupsize)], weight=True)
+                        else:
+                            idx = i1 + i
+                            if actorder:
+                                idx = perm[idx]
+                            self.quantizer = groups[idx // groupsize]
+                    q = self.quantizer.quantize(w.unsqueeze(1)).flatten()
+
+                elif columnwise:
+                    q, BinaryWeight, alpha, _, scale  = quantize_shift(w.unsqueeze(0),\
+                            qbits=self.quantizer.wbits, group_size=groupsize, rounds=self.quantizer.rounds)
                     q = q.flatten()
 
                 else:
@@ -184,7 +216,6 @@ class GPTQ:
         self.layer.weight.data = Q.reshape(self.layer.weight.shape).to(self.layer.weight.data.dtype)
         if DEBUG:
             print(torch.sum((self.layer(self.inp1) - self.out1) ** 2))
-
 
     def free(self):
         if DEBUG:

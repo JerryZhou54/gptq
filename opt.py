@@ -11,6 +11,7 @@ from quant import *
 from bcq_quant.quant_model_bcq import quant_model
 from lut_gemm.quant import load_lut
 from bcq_quant.quantizer import BCQuantizer
+from nonLinear_quant import NonLinearQuantizer
 
 def get_opt(model):
     import torch
@@ -100,33 +101,51 @@ def opt_sequential(model, dataloader, dev):
         for name in subset:
             gptq[name] = GPTQ(subset[name])
             if args.layermix:
-                if args.lut_eval:
+                if args.lut_eval or args.columnwise:
                     gptq[name].quantizer = BCQuantizer(subset[name], 
                                                        groupsize=args.groupsize, 
                                                        wbits=layer_wbit[i],
                                                        rounds=args.bcq_round)
+                elif args.non_linear:
+                    gptq[name].quantizer = NonLinearQuantizer(subset[name], 
+                                                       wbits=layer_wbit[i],
+                                                       hyperbits=layer_wbit[i]+2,
+                                                       exploreBits=args.exploreBits,
+                                                       exploreSplit=args.exploreSplit)
                 else:
                     gptq[name].quantizer = Quantizer()
                     gptq[name].quantizer.configure(
                         layer_wbit[i], perchannel=True, sym=args.sym, mse=False, trits=args.trits
                     )
             elif args.linearmix:
-                if args.lut_eval:
+                if args.lut_eval or args.columnwise:
                     gptq[name].quantizer = BCQuantizer(subset[name], 
                                                        groupsize=args.groupsize, 
                                                        wbits=linear_wbit[name.split(".")[-1]],
                                                        rounds=args.bcq_round)
+                elif args.non_linear:
+                    gptq[name].quantizer = NonLinearQuantizer(subset[name], 
+                                                       wbits=linear_wbit[name.split(".")[-1]],
+                                                       hyperbits=linear_wbit[name.split(".")[-1]]+2,
+                                                       exploreBits=args.exploreBits,
+                                                       exploreSplit=args.exploreSplit)
                 else:
                     gptq[name].quantizer = Quantizer()
                     gptq[name].quantizer.configure(
                         linear_wbit[name.split(".")[-1]], perchannel=True, sym=args.sym, mse=False, trits=args.trits
                     )
             else:
-                if args.lut_eval:
+                if args.lut_eval or args.columnwise:
                     gptq[name].quantizer = BCQuantizer(subset[name], 
                                                        groupsize=args.groupsize, 
                                                        wbits=args.wbits,
                                                        rounds=args.bcq_round)
+                elif args.non_linear:
+                    gptq[name].quantizer = NonLinearQuantizer(subset[name], 
+                                                       wbits=args.wbits,
+                                                       hyperbits=args.hyperbits,
+                                                       exploreBits=args.exploreBits,
+                                                       exploreSplit=args.exploreSplit)
                 else:
                     gptq[name].quantizer = Quantizer()
                     gptq[name].quantizer.configure(
@@ -153,10 +172,11 @@ def opt_sequential(model, dataloader, dev):
                 percdamp=args.percdamp, groupsize=args.groupsize, 
                 actorder=args.act_order, static_groups=args.static_groups, 
                 model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                lut_quant=args.lut_eval
+                lut_quant=args.lut_eval, non_linear_quant=args.non_linear, columnwise=args.columnwise
             )
             quantizers['model.decoder.layers.%d.%s' % (i, name)] = gptq[name].quantizer
             gptq[name].free()
+        
         for j in range(args.nsamples):
             outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
 
@@ -276,7 +296,27 @@ def opt_eval(model, testenc, dev):
     ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * model.seqlen))
     print(ppl.item())
     with open("./quant_bit/ppl.txt", "a") as f:
-        f.write(f"model = {str(args.model).split('/')[-1]}, wbits = {args.wbits}, groupsize = {args.groupsize}, lut = {args.lut_eval}   :   {ppl.item()}\n")
+        f.write(f"model = {str(args.model).split('/')[-1]}, wbits = {args.wbits}, groupsize = {args.groupsize}, lut = {args.lut_eval}, nonLinear = {args.non_linear}, columnwise = {args.columnwise}   :   {ppl.item()}")
+        
+        if args.non_linear:
+            f.write(f"  ||  hyperbits = {args.hyperbits}, exploreBits = {args.exploreBits}, exploreSplit = {args.exploreSplit}")
+        if args.lut_eval or args.columnwise:
+            f.write(f"  ||  bcq_round = {args.bcq_round}")
+
+        if args.layermix:
+            import json
+            with open("./quant_bit/layerwise.json", "r") as f:
+                layer_wbit_dict = json.load(f)
+                model_name = str(args.model).split("/")[-1]
+                layer_wbit = layer_wbit_dict[model_name]
+            f.write(f"  ||  layerMix_wbit = {layer_wbit}")
+        
+        if args.linearmix:
+            import json
+            with open("./quant_bit/linearwise.json", "r") as f:
+                linear_wbit = json.load(f)
+            f.write(f"  ||  linearMix_wbit = {linear_wbit}")
+        f.write("\n")
 
     model.config.use_cache = use_cache
 
@@ -504,12 +544,11 @@ if __name__ == '__main__':
         help='Whether to apply the activation order GPTQ heuristic'
     )
     parser.add_argument(
-        '--static-groups', action='store_true',
+        '--static-groups', action='store_true', default=True,
         help='Whether to use static groups; recommended when using `--actorder` for more efficient inference.'
     )
 
     # bcq quant - LUT-gemm
-
     parser.add_argument(
         '--bcq', action='store_true', help='Quantize weight with bcq.'
     )
@@ -522,6 +561,28 @@ if __name__ == '__main__':
     parser.add_argument(
         '--bcq_round', type=int, default=5,
         help='Steps to iterate bcq quantization.'
+    )
+    # non_linear quant - LUT-gemm
+    parser.add_argument(
+        '--non_linear', action='store_true',
+        help='Use non_linear-quantization to evaluate model. Can be converted to LUT type.'
+    )
+    parser.add_argument(
+        '--hyperbits', type=int, default=5,
+        help='Use hyperbits linear quant to explore possible non_linear choice.'
+    )
+    parser.add_argument(
+        '--exploreBits', type=int, default=1,
+        help='To explore better scale. Start at scale for (hyperbits - exploreBits) and end at scale for (hyperbits + exploreBits).)'
+    )
+    parser.add_argument(
+        '--exploreSplit', type=int, default=20,
+        help='To explore better scale. Split the range into (exploreSplit) parts.'
+    )
+    # columnwise quant
+    parser.add_argument(
+        '--columnwise', action='store_true',
+        help='Use columnwise - bcq - round to power of 2 - quantization to evaluate model. Can be used with new cuda kernel.'
     )
 
     # mix precision
@@ -555,7 +616,7 @@ if __name__ == '__main__':
             model = quant_model(model, qbits=args.wbits, group_size=args.groupsize)
         else:
             quantizers = opt_sequential(model, dataloader, DEV)
-        print(time.time() - tick)
+        print("full quantization time: ",time.time() - tick)
 
     if args.benchmark:
         gpus = [torch.device('cuda:%d' % i) for i in range(torch.cuda.device_count())]
@@ -571,7 +632,7 @@ if __name__ == '__main__':
     if args.load or args.lut_bench:
         exit()
 
-    datasets = ['wikitext2', 'ptb', 'c4'] 
+    datasets = ['wikitext2', 'ptb'] 
     if args.new_eval:
       datasets = ['wikitext2', 'ptb-new', 'c4-new']
     for dataset in datasets: 

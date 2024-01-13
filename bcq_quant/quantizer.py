@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 
 from .bcq_shift import quantize_shift, find_B_torch
@@ -18,11 +19,11 @@ def quantize(x, alpha, groupsize = -1, scale = None, qbias = None):
     if qbias is not None:
         qbias.to(qbias.device)
         qbias = qbias.unsqueeze(-1).expand_as(x)
-        x = x - qbias
+        # x = x - qbias
     if scale is not None:
         scale.to(x.device)
         scale = scale.unsqueeze(-1).expand_as(x)
-        x = x / scale
+        # x = x / scale
 
     # B[:, :, :, 0] = torch.sign(w)
     # for i in range(1, wbits):
@@ -33,10 +34,10 @@ def quantize(x, alpha, groupsize = -1, scale = None, qbias = None):
     B = B.reshape([N, K // groupsize, groupsize, wbits])
     
     ret = torch.einsum('mngb,mnb->mng', (B, alpha))
-    if scale is not None:
-        ret = ret * scale
-    if qbias is not None:
-        ret = ret + qbias
+    # if scale is not None:
+    #     ret = ret * scale
+    # if qbias is not None:
+    #     ret = ret + qbias
 
     ret = ret.reshape([N, K])
 
@@ -52,7 +53,7 @@ class BCQuantizer(nn.Module):
         self.groupsize = groupsize
         self.rounds = rounds
 
-        W = layer.weight.data.clone()
+        W = layer.weight.data
         N, K = W.shape
         if groupsize == -1:
             num_group = 1
@@ -66,13 +67,21 @@ class BCQuantizer(nn.Module):
         self.register_buffer('qbias', torch.zeros(N, num_group))
 
 
-    def find_params(self, x):
+    def find_params(self, x, input=None):
         # WARNING: assert x is linear weight
         if len(x.shape) != 2:
             raise ValueError(r'x should be linear weight')
+        if input is None:
+            wf = None
+        else:
+            input = torch.abs(input)
+            input = F.normalize(input, p=2, dim=0)
+            wf = input.unsqueeze(0).expand_as(x)
+
         # self.ret, self.B, self.alpha, _, self.scale = \
         _, _, self.alpha, _, self.scale = \
-            quantize_shift(x, qbits=self.wbits, rounds=self.rounds, group_size=self.groupsize)
+            quantize_shift(x, qbits=self.wbits, rounds=self.rounds, group_size=self.groupsize,
+                           exponent=0.0, clipping=1.0, pruning=0.0, use_bst=True, wf=wf)
         assert torch.all(torch.sort(self.alpha, dim=2, descending=True)[0] == self.alpha), "alpha should be in descending order, something wrong with 'quantize_shift'"
 
     def quantize(self, x):

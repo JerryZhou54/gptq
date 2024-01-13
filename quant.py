@@ -23,6 +23,7 @@ class Quantizer(nn.Module):
         mse=False, norm=2.4, grid=100, maxshrink=.8,
         trits=False
     ):
+        self.wbits = bits
         self.maxq = torch.tensor(2 ** bits - 1)
         self.perchannel = perchannel
         self.sym = sym

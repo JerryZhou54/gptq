@@ -11,7 +11,8 @@ from quant import *
 
 from bcq_quant.quant_model_bcq import quant_model
 from lut_gemm.quant import load_lut
-
+from bcq_quant.quantizer import BCQuantizer
+from nonLinear_quant import NonLinearQuantizer
 def get_bloom(model):
     import torch
     def skip(*args, **kwargs):
@@ -93,19 +94,57 @@ def bloom_sequential(model, dataloader, dev, means=None, stds=None):
         gptq = {}
         for name in subset:
             gptq[name] = GPTQ(subset[name])
-            gptq[name].quantizer = Quantizer()
             if args.layermix:
-                gptq[name].quantizer.configure(
-                    layer_wbit[i], perchannel=True, sym=args.sym, mse=False, trits=args.trits
-                )
+                if args.lut_eval:
+                    gptq[name].quantizer = BCQuantizer(subset[name], 
+                                                       groupsize=args.groupsize, 
+                                                       wbits=layer_wbit[i],
+                                                       rounds=args.bcq_round)
+                elif args.non_linear:
+                    gptq[name].quantizer = NonLinearQuantizer(subset[name], 
+                                                       wbits=layer_wbit[i],
+                                                       hyperbits=layer_wbit[i]+2,
+                                                       exploreBits=args.exploreBits,
+                                                       exploreSplit=args.exploreSplit)
+                else:
+                    gptq[name].quantizer = Quantizer()
+                    gptq[name].quantizer.configure(
+                        layer_wbit[i], perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                    )
             elif args.linearmix:
-                gptq[name].quantizer.configure(
-                    linear_wbit[name.split(".")[-1]], perchannel=True, sym=args.sym, mse=False, trits=args.trits
-                )
+                if args.lut_eval:
+                    gptq[name].quantizer = BCQuantizer(subset[name], 
+                                                       groupsize=args.groupsize, 
+                                                       wbits=linear_wbit[name.split(".")[-1]],
+                                                       rounds=args.bcq_round)
+                elif args.non_linear:
+                    gptq[name].quantizer = NonLinearQuantizer(subset[name], 
+                                                       wbits=linear_wbit[name.split(".")[-1]],
+                                                       hyperbits=linear_wbit[name.split(".")[-1]]+2,
+                                                       exploreBits=args.exploreBits,
+                                                       exploreSplit=args.exploreSplit)
+                else:
+                    gptq[name].quantizer = Quantizer()
+                    gptq[name].quantizer.configure(
+                        linear_wbit[name.split(".")[-1]], perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                    )
             else:
-                gptq[name].quantizer.configure(
-                    args.wbits, perchannel=True, sym=args.sym, mse=False, trits=args.trits
-                )
+                if args.lut_eval:
+                    gptq[name].quantizer = BCQuantizer(subset[name], 
+                                                       groupsize=args.groupsize, 
+                                                       wbits=args.wbits,
+                                                       rounds=args.bcq_round)
+                elif args.non_linear:
+                    gptq[name].quantizer = NonLinearQuantizer(subset[name], 
+                                                       wbits=args.wbits,
+                                                       hyperbits=args.hyperbits,
+                                                       exploreBits=args.exploreBits,
+                                                       exploreSplit=args.exploreSplit)
+                else:
+                    gptq[name].quantizer = Quantizer()
+                    gptq[name].quantizer.configure(
+                        args.wbits, perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                    )
 
         def add_batch(name):
             def tmp(_, inp, out):
@@ -122,30 +161,13 @@ def bloom_sequential(model, dataloader, dev, means=None, stds=None):
         for name in subset:
             print(i, name)
             print('Quantizing ...')
-            if args.layermix:
-                gptq[name].fasterquant(
-                    blocksize=128,
-                    percdamp=args.percdamp, groupsize=args.groupsize, 
-                    actorder=args.act_order, static_groups=args.static_groups, 
-                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                    lut_quant=args.lut_eval, wbit=layer_wbit[i], bcq_round=args.bcq_round
-                )
-            elif args.linearmix:
-                gptq[name].fasterquant(
-                    blocksize=128,
-                    percdamp=args.percdamp, groupsize=args.groupsize, 
-                    actorder=args.act_order, static_groups=args.static_groups, 
-                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                    lut_quant=args.lut_eval, wbit=linear_wbit[name.split(".")[-1]], bcq_round=args.bcq_round
-                )
-            else:
-                gptq[name].fasterquant(
-                    blocksize=128,
-                    percdamp=args.percdamp, groupsize=args.groupsize, 
-                    actorder=args.act_order, static_groups=args.static_groups, 
-                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                    lut_quant=args.lut_eval, wbit=args.wbits, bcq_round=args.bcq_round
-                )
+            gptq[name].fasterquant(
+                blocksize=128,
+                percdamp=args.percdamp, groupsize=args.groupsize, 
+                actorder=args.act_order, static_groups=args.static_groups, 
+                model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
+                lut_quant=args.lut_eval, non_linear_quant=args.non_linear
+            )
             quantizers['transformer.h.%d.%s' % (i, name)] = gptq[name].quantizer
         for j in range(args.nsamples):
             outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, alibi=alibi)[0]
@@ -348,6 +370,23 @@ if __name__ == '__main__':
         help='Steps to iterate bcq quantization.'
     )
 
+    parser.add_argument(
+        '--non_linear', action='store_true',
+        help='Use non_linear-quantization to evaluate model. Can be converted to LUT type.'
+    )
+    parser.add_argument(
+        '--hyperbits', type=int, default=5,
+        help='Use hyperbits linear quant to explore possible non_linear choice.'
+    )
+    parser.add_argument(
+        '--exploreBits', type=int, default=1,
+        help='To explore better scale. Start at scale for (hyperbits - exploreBits) and end at scale for (hyperbits + exploreBits).)'
+    )
+    parser.add_argument(
+        '--exploreSplit', type=int, default=20,
+        help='To explore better scale. Split the range into (exploreSplit) parts.'
+    )
+
     # mix precision
     parser.add_argument(
         '--linearmix', action='store_true',
@@ -373,7 +412,7 @@ if __name__ == '__main__':
         quantizers = bloom_sequential(model, dataloader, DEV)
         print(time.time() - tick)
 
-    datasets = ['wikitext2', 'ptb', 'c4'] 
+    datasets = ['wikitext2', 'ptb'] 
     if args.new_eval:
         datasets = ['wikitext2', 'ptb-new', 'c4-new']
     for dataset in datasets: 
