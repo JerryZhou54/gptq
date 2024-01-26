@@ -39,11 +39,11 @@ def round_power_of_2(x, rounding='deterministic', q_bias=None, scale=None):
     return x_rounded
 
 def additive_power_of_2(x, nums = 2):
-    shift, sign = get_shift_and_sign(x, rounding = "floor")
+    shift, sign = get_shift_and_sign(x, rounding = "deterministic")
     x_rounded = (2.0 ** shift) * sign
     for _ in range(nums - 1):
-        x = x - x_rounded
-        shift, sign = get_shift_and_sign(x, rounding = "floor")
+        x_diff = x - x_rounded
+        shift, sign = get_shift_and_sign(x_diff, rounding = "deterministic")
         x_rounded += (2.0 ** shift) * sign
     return x_rounded
 
@@ -79,7 +79,7 @@ def get_best_scale_bias(x):
     return scale, bias
 
 @torch.inference_mode()
-def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent=0.0, clipping=1.0, pruning=0.0, use_bst=True, wf = None):
+def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent=0.0, clipping=1.0, pruning=0.0, use_bst=True, wf = None, apot_nums = 1):
     '''
     rounds == 0: greedy algorithm
     rounds == 1: refined greedy algorithm
@@ -112,10 +112,9 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     # init weighted
     wf = torch.ones(w_.shape, dtype=torch.float32, device=w_.device)
 
-    # w_abs = w_.abs()
-    # ws, _ = w_abs.view(-1).sort()
-
     # if wf is None:
+    #     w_abs = w_.abs()
+    #     ws, _ = w_abs.view(-1).sort()
     #     wf = torch.ones(w_.shape, dtype=torch.float32, device=w.device)
     #     if pruning > 0.0:
     #         wf = wf * (w_ != 0.0)
@@ -135,7 +134,7 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     #         wf[w_abs <= p_th] = 0.0
     #         w_[w_abs <= p_th] = 0.0
 
-    wf = wf.to(w_.device)
+    # wf = wf.to(w_.device)
     
     # get best quantize scale and bias
     ret, B, alpha = greedy_mean_torch(w_, n_bits=qbits, wf=wf)
@@ -145,7 +144,7 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     # ret, B, alpha = greedy_mean_torch(w_, n_bits=qbits, wf=wf, scale=scale, q_bias=None, shift = True)
     if rounds > 0 and qbits > 1:
         for _ in range(rounds):
-            ret, B, alpha, scale = refine_mean_torch(w_, ret, B, alpha, wf=wf, use_bst=use_bst)
+            ret, B, alpha, scale = refine_mean_torch(w_, ret, B, alpha, wf=wf, use_bst=use_bst, apot_nums=apot_nums)
 
     ret = torch.einsum('ijl,il->ij', (B, alpha))
     ret = ret.view(orig_shape) 
@@ -166,8 +165,8 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     return ret, B, alpha, (wf != 0.0), scale
 
 def greedy_mean_torch(w, n_bits=1, wf=None, q_bias=None, scale=None, shift = False):
-    B = torch.zeros(w.shape + (n_bits,), device=w.device)
-    Alpha = torch.zeros(w.shape[0], n_bits, device=w.device)
+    B = torch.zeros(w.shape + (n_bits,), device=w.device, dtype=w.dtype)
+    Alpha = torch.zeros(w.shape[0], n_bits, device=w.device, dtype=w.dtype)
   
     r, w_hat = w.clone(), 0.
     for i in range(n_bits):
@@ -197,7 +196,7 @@ def greedy_mean_torch(w, n_bits=1, wf=None, q_bias=None, scale=None, shift = Fal
 
     return w_hat, B, Alpha
 
-def refine_mean_torch(w, w_hat, B, Alpha, wf=None, use_bst=True):
+def refine_mean_torch(w, w_hat, B, Alpha, wf=None, use_bst=True, apot_nums=1):
     w = w.float()
     d1, d2 = w.shape
     with torch.no_grad():
@@ -216,8 +215,8 @@ def refine_mean_torch(w, w_hat, B, Alpha, wf=None, use_bst=True):
         # scale = get_best_scale(Alpha_new)
         scale = None
         # Alpha_new = round_power_of_2(Alpha_new, scale=scale, q_bias=None)
-        # Alpha_new = additive_power_of_2(Alpha_new, nums=2)
-
+        Alpha_new = additive_power_of_2(Alpha_new, nums=apot_nums)
+        torch.cuda.empty_cache()
         if use_bst == False:
             r = w.clone()
             B_new = torch.zeros_like(B)
@@ -252,8 +251,8 @@ def find_B_torch(w, Alpha):
     v_sorted, inds = torch.sort(v)
     # Binary search to find nearest neighbor
     w_flat = w.view([-1])
-    Left = torch.zeros(d1*d2, dtype=torch.long, device=w.device)
-    Right = torch.ones(d1*d2, dtype=torch.long, device=w.device) * (2 ** n_bits - 1)
+    Left = torch.zeros(d1*d2, dtype=torch.int, device=w.device)
+    Right = torch.ones(d1*d2, dtype=torch.int, device=w.device) * (2 ** n_bits - 1)
     for i in range(n_bits):
         Mid_Left = torch.div(Left + Right - 1, 2, rounding_mode='trunc')
         Mid_Right = Mid_Left + 1

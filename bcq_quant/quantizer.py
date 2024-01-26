@@ -5,7 +5,7 @@ import numpy as np
 
 from .bcq_shift import quantize_shift, find_B_torch
 
-def quantize(x, alpha, groupsize = -1, scale = None, qbias = None):
+def quantize(x, alpha, groupsize = -1, use_bst=True):
 
     alpha.to(x.device)
     N, K = x.shape
@@ -13,32 +13,24 @@ def quantize(x, alpha, groupsize = -1, scale = None, qbias = None):
     if groupsize == -1:
         groupsize = K
     x = x.reshape([N, K // groupsize, groupsize])
-    w = x.clone()
+    w = x
     B = torch.zeros(N, K // groupsize, groupsize, wbits, device=x.device)
-
-    if qbias is not None:
-        qbias.to(qbias.device)
-        qbias = qbias.unsqueeze(-1).expand_as(x)
-        # x = x - qbias
-    if scale is not None:
-        scale.to(x.device)
-        scale = scale.unsqueeze(-1).expand_as(x)
-        # x = x / scale
 
     # B[:, :, :, 0] = torch.sign(w)
     # for i in range(1, wbits):
     #     w = w - B[:, :, :, i - 1] * alpha[:, :, i - 1].unsqueeze(-1).expand_as(w)
     #     B[:, :, :, i] = torch.sign(w)
     
-    B = find_B_torch(x.reshape(-1, groupsize), alpha.reshape(-1, wbits))
-    B = B.reshape([N, K // groupsize, groupsize, wbits])
-    
-    ret = torch.einsum('mngb,mnb->mng', (B, alpha))
-    # if scale is not None:
-    #     ret = ret * scale
-    # if qbias is not None:
-    #     ret = ret + qbias
+    if use_bst:
+        B = find_B_torch(x.reshape(-1, groupsize), alpha.reshape(-1, wbits))
+        B = B.reshape([N, K // groupsize, groupsize, wbits])
+    else:
+        B[:, :, :, 0] = torch.sign(w)
+        for i in range(1, wbits):
+            w = w - B[:, :, :, i - 1] * alpha[:, :, i - 1].unsqueeze(-1).expand_as(w)
+            B[:, :, :, i] = torch.sign(w)
 
+    ret = torch.einsum('mngb,mnb->mng', (B, alpha))
     ret = ret.reshape([N, K])
 
     return ret, B
@@ -46,48 +38,47 @@ def quantize(x, alpha, groupsize = -1, scale = None, qbias = None):
 
 class BCQuantizer(nn.Module):
 
-    def __init__(self, layer, groupsize=-1, wbits=3, rounds = 5):
+    def __init__(self, layer, groupsize=-1, wbits=3, rounds = 5, use_bst=True, apot_nums=1):
         super(BCQuantizer, self).__init__()
 
         self.wbits = wbits
         self.groupsize = groupsize
         self.rounds = rounds
+        self.use_bst = use_bst
+        self.apot_nums = apot_nums
 
         W = layer.weight.data
         N, K = W.shape
         if groupsize == -1:
             num_group = 1
         else:
-            if K % groupsize != 0:
-                raise ValueError(r'K % groupsize != 0')
+            # if K % groupsize != 0:
+            #     raise ValueError(f'K % groupsize != 0, K = {K}, groupsize = {groupsize}')
             num_group = K // groupsize
 
         self.register_buffer('alpha', torch.zeros(N, num_group, wbits))
-        self.register_buffer('scale', torch.ones(N, num_group))
-        self.register_buffer('qbias', torch.zeros(N, num_group))
 
 
     def find_params(self, x, input=None):
         # WARNING: assert x is linear weight
         if len(x.shape) != 2:
             raise ValueError(r'x should be linear weight')
-        if input is None:
-            wf = None
-        else:
-            input = torch.abs(input)
-            input = F.normalize(input, p=2, dim=0)
-            wf = input.unsqueeze(0).expand_as(x)
+        # if input is None:
+        #     wf = None
+        # else:
+        #     input = torch.abs(input)
+        #     input = F.normalize(input, p=2, dim=0)
+        #     wf = input.unsqueeze(0).expand_as(x)
 
-        # self.ret, self.B, self.alpha, _, self.scale = \
-        _, _, self.alpha, _, self.scale = \
+        _, _, self.alpha, _, _ = \
             quantize_shift(x, qbits=self.wbits, rounds=self.rounds, group_size=self.groupsize,
-                           exponent=0.0, clipping=1.0, pruning=0.0, use_bst=True, wf=wf)
+                           exponent=0.0, clipping=1.0, pruning=0.0, use_bst=self.use_bst, wf=None, apot_nums=self.apot_nums)
         assert torch.all(torch.sort(self.alpha, dim=2, descending=True)[0] == self.alpha), "alpha should be in descending order, something wrong with 'quantize_shift'"
 
     def quantize(self, x):
         if not self.ready():
             self.find_params(x)
-        return quantize(x, self.alpha, self.groupsize, self.scale, self.qbias)
+        return quantize(x, self.alpha, self.groupsize)
 
 
     def ready(self):

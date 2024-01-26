@@ -102,10 +102,12 @@ def opt_sequential(model, dataloader, dev):
             gptq[name] = GPTQ(subset[name])
             if args.layermix:
                 if args.lut_eval or args.columnwise:
-                    gptq[name].quantizer = BCQuantizer(subset[name], 
+                    gptq[name].quantizer = BCQuantizer(subset[name] if args.lut_eval else nn.Linear(1, 1),
                                                        groupsize=args.groupsize, 
                                                        wbits=layer_wbit[i],
-                                                       rounds=args.bcq_round)
+                                                       rounds=args.bcq_round,
+                                                       use_bst=args.use_bst, 
+                                                       apot_nums=args.apot_nums)
                 elif args.non_linear:
                     gptq[name].quantizer = NonLinearQuantizer(subset[name], 
                                                        wbits=layer_wbit[i],
@@ -119,10 +121,12 @@ def opt_sequential(model, dataloader, dev):
                     )
             elif args.linearmix:
                 if args.lut_eval or args.columnwise:
-                    gptq[name].quantizer = BCQuantizer(subset[name], 
+                    gptq[name].quantizer = BCQuantizer(subset[name] if args.lut_eval else nn.Linear(1, 1),
                                                        groupsize=args.groupsize, 
                                                        wbits=linear_wbit[name.split(".")[-1]],
-                                                       rounds=args.bcq_round)
+                                                       rounds=args.bcq_round,
+                                                       use_bst=args.use_bst, 
+                                                       apot_nums=args.apot_nums)
                 elif args.non_linear:
                     gptq[name].quantizer = NonLinearQuantizer(subset[name], 
                                                        wbits=linear_wbit[name.split(".")[-1]],
@@ -136,10 +140,12 @@ def opt_sequential(model, dataloader, dev):
                     )
             else:
                 if args.lut_eval or args.columnwise:
-                    gptq[name].quantizer = BCQuantizer(subset[name], 
+                    gptq[name].quantizer = BCQuantizer(subset[name] if args.lut_eval else nn.Linear(1, 1),
                                                        groupsize=args.groupsize, 
                                                        wbits=args.wbits,
-                                                       rounds=args.bcq_round)
+                                                       rounds=args.bcq_round,
+                                                       use_bst=args.use_bst, 
+                                                       apot_nums=args.apot_nums)
                 elif args.non_linear:
                     gptq[name].quantizer = NonLinearQuantizer(subset[name], 
                                                        wbits=args.wbits,
@@ -302,6 +308,7 @@ def opt_eval(model, testenc, dev):
             f.write(f"  ||  hyperbits = {args.hyperbits}, exploreBits = {args.exploreBits}, exploreSplit = {args.exploreSplit}")
         if args.lut_eval or args.columnwise:
             f.write(f"  ||  bcq_round = {args.bcq_round}")
+            f.write(f"  ||  apot_nums = {args.apot_nums} use_bst = {args.use_bst}")
 
         if args.layermix:
             import json
@@ -579,10 +586,19 @@ if __name__ == '__main__':
         '--exploreSplit', type=int, default=20,
         help='To explore better scale. Split the range into (exploreSplit) parts.'
     )
+
     # columnwise quant
     parser.add_argument(
         '--columnwise', action='store_true',
         help='Use columnwise - bcq - round to power of 2 - quantization to evaluate model. Can be used with new cuda kernel.'
+    )
+    parser.add_argument(
+        '--use_bst', action='store_true',default=False,
+        help='Use bst of get BinaryWeight'
+    )
+    parser.add_argument(
+        '--apot_nums', type=int, default=2,
+        help='set nums shift weight for quantization.'
     )
 
     # mix precision

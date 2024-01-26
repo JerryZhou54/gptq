@@ -91,7 +91,7 @@ class GPTQ:
         # if lut_quant:
         #     print(self.quantizer.alpha[0:5,0,:])
 
-        if static_groups and not lut_quant:
+        if static_groups and not lut_quant and not columnwise:
             import copy
             groups = []
             for i in range(0, self.columns, groupsize):
@@ -118,7 +118,7 @@ class GPTQ:
         if not self.quantizer.ready():
             if non_linear_quant:
                 self.quantizer.find_params(W, self.input.float())
-            else:
+            elif not columnwise:
                 self.quantizer.find_params(W)
 
         # if lut_quant:
@@ -163,9 +163,28 @@ class GPTQ:
                     q = self.quantizer.quantize(w.unsqueeze(1)).flatten()
 
                 elif columnwise:
-                    q, BinaryWeight, alpha, _, scale  = quantize_shift(w.unsqueeze(0),\
-                            qbits=self.quantizer.wbits, group_size=groupsize, rounds=self.quantizer.rounds)
+                    # wf = torch.ones(w.unsqueeze(0).shape, dtype=w.dtype, device=w.device) / d 
+                    wf = None
+                    # q, BinaryWeight, alpha, _, scale  = quantize_shift(w.unsqueeze(0),\
+                    #         qbits=self.quantizer.wbits, group_size=groupsize, rounds=self.quantizer.rounds, wf = wf, 
+                    #         use_bst=self.quantizer.use_bst, apot_nums=self.quantizer.apot_nums)
+                    # q = q.flatten()
+
+                    if i % 8 == 0:
+                        w_8column = W1[:, i:i+8].flatten()
+                        q, BinaryWeight, alpha, _, scale  = quantize_shift(w_8column.unsqueeze(0),
+                                qbits=self.quantizer.wbits, group_size=groupsize * 8 if groupsize != -1 else -1, 
+                                rounds=self.quantizer.rounds, wf = wf, 
+                                use_bst=self.quantizer.use_bst, apot_nums=self.quantizer.apot_nums)
+                    q, BinaryWeight = bcq_quantize(w.unsqueeze(0), alpha, groupsize=groupsize, use_bst=self.quantizer.use_bst)
                     q = q.flatten()
+
+
+                    # q, BinaryWeight, alpha, _, scale  = quantize_shift(w.unsqueeze(0),\
+                    #         qbits=self.quantizer.wbits, group_size=groupsize, rounds=self.quantizer.rounds, wf = wf, 
+                    #         use_bst=self.quantizer.use_bst, apot_nums=self.quantizer.apot_nums)
+                    # q, BinaryWeight = bcq_quantize(w.unsqueeze(0), alpha, groupsize=-1, use_bst=False)
+                    # q = q.flatten()
 
                 else:
                     if groupsize != -1:
