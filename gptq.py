@@ -179,13 +179,6 @@ class GPTQ:
                     q, BinaryWeight = bcq_quantize(w.unsqueeze(0), alpha, groupsize=groupsize, use_bst=self.quantizer.use_bst)
                     q = q.flatten()
 
-
-                    # q, BinaryWeight, alpha, _, scale  = quantize_shift(w.unsqueeze(0),\
-                    #         qbits=self.quantizer.wbits, group_size=groupsize, rounds=self.quantizer.rounds, wf = wf, 
-                    #         use_bst=self.quantizer.use_bst, apot_nums=self.quantizer.apot_nums)
-                    # q, BinaryWeight = bcq_quantize(w.unsqueeze(0), alpha, groupsize=-1, use_bst=False)
-                    # q = q.flatten()
-
                 else:
                     if groupsize != -1:
                         if not static_groups:
