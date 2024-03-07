@@ -7,13 +7,14 @@ def set_seed(seed):
     torch.random.manual_seed(seed)
 
 
-def get_wikitext2(nsamples, seed, seqlen, model):
+def get_wikitext2(nsamples, seed, seqlen, model, tokenizer=None):
     from datasets import load_dataset
     traindata = load_dataset('wikitext', 'wikitext-2-raw-v1', split='train')
     testdata = load_dataset('wikitext', 'wikitext-2-raw-v1', split='test')
 
-    from transformers import AutoTokenizer 
-    tokenizer = AutoTokenizer.from_pretrained(model, use_fast=False)
+    if tokenizer is None:
+        from transformers import AutoTokenizer 
+        tokenizer = AutoTokenizer.from_pretrained(model, use_fast=False)
     trainenc = tokenizer("\n\n".join(traindata['text']), return_tensors='pt')
     testenc = tokenizer("\n\n".join(testdata['text']), return_tensors='pt')
 
@@ -29,13 +30,14 @@ def get_wikitext2(nsamples, seed, seqlen, model):
         trainloader.append((inp, tar))
     return trainloader, testenc
 
-def get_ptb(nsamples, seed, seqlen, model):
+def get_ptb(nsamples, seed, seqlen, model, tokenizer=None):
     from datasets import load_dataset
     traindata = load_dataset('ptb_text_only', 'penn_treebank', split='train')
     valdata = load_dataset('ptb_text_only', 'penn_treebank', split='validation')
 
-    from transformers import AutoTokenizer 
-    tokenizer = AutoTokenizer.from_pretrained(model, use_fast=False)
+    if tokenizer is None:
+        from transformers import AutoTokenizer 
+        tokenizer = AutoTokenizer.from_pretrained(model, use_fast=False)
     trainenc = tokenizer("\n\n".join(traindata['sentence']), return_tensors='pt')
     testenc = tokenizer("\n\n".join(valdata['sentence']), return_tensors='pt')
 
@@ -51,7 +53,7 @@ def get_ptb(nsamples, seed, seqlen, model):
         trainloader.append((inp, tar))
     return trainloader, testenc
 
-def get_c4(nsamples, seed, seqlen, model):
+def get_c4(nsamples, seed, seqlen, model, tokenizer=None):
     from datasets import load_dataset
     traindata = load_dataset(
         'allenai/c4', 'allenai--c4', data_files={'train': 'en/c4-train.00000-of-01024.json.gz'}, split='train'
@@ -60,8 +62,9 @@ def get_c4(nsamples, seed, seqlen, model):
         'allenai/c4', 'allenai--c4', data_files={'validation': 'en/c4-validation.00000-of-00008.json.gz'}, split='validation'
     )
 
-    from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model, use_fast=False)
+    if tokenizer is None:
+        from transformers import AutoTokenizer 
+        tokenizer = AutoTokenizer.from_pretrained(model, use_fast=False)
 
     import random
     random.seed(seed)
@@ -161,15 +164,15 @@ def get_c4_new(nsamples, seed, seqlen, model):
 
 
 def get_loaders(
-    name, nsamples=128, seed=0, seqlen=2048, model=''
+    name, nsamples=128, seed=0, seqlen=2048, model='', tokenizer=None
 ):
     if 'wikitext2' in name:
-        return get_wikitext2(nsamples, seed, seqlen, model)
+        return get_wikitext2(nsamples, seed, seqlen, model, tokenizer)
     if 'ptb' in name:
         if 'new' in name:
-            return get_ptb_new(nsamples, seed, seqlen, model)
+            return get_ptb_new(nsamples, seed, seqlen, model, tokenizer)
         return get_ptb(nsamples, seed, seqlen, model)
     if 'c4' in name:
         if 'new' in name:
-            return get_c4_new(nsamples, seed, seqlen, model)
+            return get_c4_new(nsamples, seed, seqlen, model, tokenizer)
         return get_c4(nsamples, seed, seqlen, model)

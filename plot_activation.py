@@ -6,7 +6,7 @@ import torch
 def plot_distribution(value, file_path = "./plot.png", name_x = "tokens", name_y = "channels"):
     assert len(value.shape) == 3, f"Expected 3D tensor, got {value.shape} instead."
     B, N, M = value.shape
-    value = value.abs().mean(dim=0)[:100,:].flatten().detach().cpu().numpy() + 1e-6
+    value = value.abs().mean(dim=0)[100:200,:].flatten().detach().cpu().numpy() + 1e-6
     N = 100
 
     # 创建3D图形
