@@ -272,9 +272,7 @@ def opt_eval(model, testenc, dev):
 
         for j in range(nsamples):
             outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
-        # print("draw distribution layer ", i)
         # plot_distribution(outs, file_path=f"./plot_activation/layer_{i}.png")
-        # print("draw distribution done, layer ", i)
         layers[i] = layer.cpu()
         del layer
         torch.cuda.empty_cache()

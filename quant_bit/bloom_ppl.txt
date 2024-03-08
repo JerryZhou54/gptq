@@ -8,3 +8,38 @@ model = bloom-7b1, wbits = 3, groupsize = -1, lut = False, nonLinear = False, co
 model = bloom-7b1, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   26.884218215942383  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
 model = bloom-1b1, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   35.39167404174805  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
 model = bloom-1b1, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   115.67240142822266  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+
+model = bloom-560m, wbits = 3, groupsize = 128, lut = False, nonLinear = False, columnwise = True   :   30.071578979492188  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = bloom-560m, wbits = 3, groupsize = 128, lut = False, nonLinear = False, columnwise = True   :   80.77545166015625  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = bloom-1b7, wbits = 3, groupsize = 256, lut = False, nonLinear = False, columnwise = True   :   21.61626625061035  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = bloom-1b7, wbits = 3, groupsize = 256, lut = False, nonLinear = False, columnwise = True   :   41.76823043823242  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = bloom-3b, wbits = 3, groupsize = 320, lut = False, nonLinear = False, columnwise = True   :   18.503923416137695  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = bloom-3b, wbits = 3, groupsize = 320, lut = False, nonLinear = False, columnwise = True   :   35.54123306274414  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = bloom-7b1, wbits = 3, groupsize = 512, lut = False, nonLinear = False, columnwise = True   :   16.585180282592773  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = bloom-7b1, wbits = 3, groupsize = 512, lut = False, nonLinear = False, columnwise = True   :   31.87261390686035  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+
+model = bloom-560m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   47.649471282958984  ||  bcq_round = 50  ||  apot_nums = 2 use_bst = True
+model = bloom-560m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   105.4715347290039  ||  bcq_round = 50  ||  apot_nums = 2 use_bst = True
+model = bloom-1b1, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   29.804454803466797  ||  bcq_round = 50  ||  apot_nums = 2 use_bst = True
+model = bloom-1b1, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   106.89798736572266  ||  bcq_round = 50  ||  apot_nums = 2 use_bst = True
+model = bloom-1b7, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   20.75896644592285  ||  bcq_round = 50  ||  apot_nums = 2 use_bst = True
+model = bloom-1b7, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   42.590003967285156  ||  bcq_round = 50  ||  apot_nums = 2 use_bst = True
+model = bloom-7b1, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   13.344273567199707  ||  bcq_round = 50  ||  apot_nums = 2 use_bst = True
+model = bloom-7b1, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   24.889911651611328  ||  bcq_round = 50  ||  apot_nums = 2 use_bst = True
+model = bloom-560m, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   22.41648292541504
+model = bloom-560m, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   41.25605392456055
+model = bloom-1b1, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   17.68537139892578
+model = bloom-1b1, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   46.95904541015625
+model = bloom-1b7, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   15.386488914489746
+model = bloom-1b7, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   27.916574478149414
+model = bloom-3b, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   13.481571197509766
+model = bloom-3b, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   23.116106033325195
+model = bloom-7b1, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   11.365710258483887
+model = bloom-7b1, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   19.399988174438477
+model = bloom-560m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   29.49656867980957
+model = bloom-560m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   62.585147857666016
+model = bloom-1b1, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   22.395076751708984
+model = bloom-1b1, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   69.6161880493164
+model = bloom-1b7, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   19.05217742919922
+model = bloom-3b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   16.220800399780273
+model = bloom-3b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   30.909666061401367

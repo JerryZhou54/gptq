@@ -11,6 +11,8 @@ from quant import *
 
 from bcq_quant.quantizer import quantize as bcq_quantize
 from bcq_quant.bcq_shift import quantize_shift
+from plot_activation import plot_distribution2d
+
 DEBUG = False 
 
 torch.backends.cuda.matmul.allow_tf32 = False
@@ -72,6 +74,8 @@ class GPTQ:
         if isinstance(self.layer, transformers.Conv1D):
             W = W.t()
         W = W.float()
+
+        # plot_distribution2d(W, file_path = f"./plot_activation/{model_name}_{layer_name}_origin.png")
 
         tick = time.time()
 
@@ -237,6 +241,8 @@ class GPTQ:
         if isinstance(self.layer, transformers.Conv1D):
             Q = Q.t()
         self.layer.weight.data = Q.reshape(self.layer.weight.shape).to(self.layer.weight.data.dtype)
+
+        # plot_distribution2d(Q, file_path = f"./plot_activation/{model_name}_{layer_name}_optq3bit.png")
         if DEBUG:
             print(torch.sum((self.layer(self.inp1) - self.out1) ** 2))
 

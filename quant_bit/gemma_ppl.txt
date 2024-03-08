@@ -1,0 +1,12 @@
+model = gemma-2b, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   13.892814636230469
+model = gemma-2b, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   50.258888244628906
+model = gemma-7b, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   95576976.0
+model = gemma-7b, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   248379680.0
+
+============================== optq ============================
+model = gemma-2b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   14254204928.0
+model = gemma-2b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   11572241408.0
+model = gemma-2b, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   217313853440.0
+model = gemma-2b, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   858218496000.0
+model = gemma-2b, wbits = 4, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   40.9306526184082
+model = gemma-2b, wbits = 4, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   323.65802001953125

@@ -1,7 +1,6 @@
 import time
 import os
-import sys
-sys.path.append("/research/data/hyou37/llama/")
+import json
 
 import torch
 import torch.nn as nn
@@ -13,23 +12,21 @@ from quant import *
 from bcq_quant.quantizer import BCQuantizer
 from nonLinear_quant import NonLinearQuantizer
 
-from llama import Llama
-
-def get_llama(model):
+def get_gemma(model):
     import torch
     def skip(*args, **kwargs):
         pass
     torch.nn.init.kaiming_uniform_ = skip
     torch.nn.init.uniform_ = skip
     torch.nn.init.normal_ = skip
-    from transformers import LlamaForCausalLM
-    model = LlamaForCausalLM.from_pretrained(model, torch_dtype='auto')
+    from transformers import GemmaForCausalLM
+    model = GemmaForCausalLM.from_pretrained(model, torch_dtype='auto')
     model.seqlen = 2048
     return model
     
 
 @torch.no_grad()
-def llama_sequential(model, dataloader, dev):
+def gemma_sequential(model, dataloader, dev):
     print('Starting ...')
 
     use_cache = model.config.use_cache
@@ -165,36 +162,36 @@ def llama_sequential(model, dataloader, dev):
                 else:
                     gptq[name].quantizer = Quantizer()
                     gptq[name].quantizer.configure(
-                        args.wbits, perchannel=True, sym=args.sym, mse=False, trits=args.trits
+                        args.wbits, perchannel=True, sym=args.sym, mse=False
                     )
 
-            def add_batch(name):
-                def tmp(_, inp, out):
-                    gptq[name].add_batch(inp[0].data, out.data)
-                return tmp
-            handles = []
-            for name in subset:
-                handles.append(subset[name].register_forward_hook(add_batch(name)))
-            for j in range(args.nsamples):
-                outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
-            for h in handles:
-                h.remove()
+        def add_batch(name):
+            def tmp(_, inp, out):
+                gptq[name].add_batch(inp[0].data, out.data)
+            return tmp
+        handles = []
+        for name in subset:
+            handles.append(subset[name].register_forward_hook(add_batch(name)))
+        for j in range(args.nsamples):
+            outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids, cache_position = position_ids.squeeze())[0]
+        for h in handles:
+            h.remove()
 
-            for name in subset:
-                print(i, name)
-                print('Quantizing ...')
-                gptq[name].fasterquant(
-                    blocksize=128,
-                    percdamp=args.percdamp, groupsize=args.groupsize, 
-                    actorder=args.act_order, static_groups=args.static_groups, 
-                    model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                    lut_quant=args.lut_eval, non_linear_quant=args.non_linear, columnwise=args.columnwise
-                )
-                quantizers['model.layers.%d.%s' % (i, name)] = gptq[name].quantizer
-                gptq[name].free()
+        for name in subset:
+            print(i, name)
+            print('Quantizing ...')
+            gptq[name].fasterquant(
+                blocksize=128,
+                percdamp=args.percdamp, groupsize=args.groupsize, 
+                actorder=args.act_order, static_groups=args.static_groups, 
+                model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
+                lut_quant=args.lut_eval, non_linear_quant=args.non_linear, columnwise=args.columnwise
+            )
+            quantizers['model.layers.%d.%s' % (i, name)] = gptq[name].quantizer
+            gptq[name].free()
 
         for j in range(args.nsamples):
-            outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+            outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids, cache_position = position_ids.squeeze())[0]
 
         layers[i] = layer.cpu()
         del layer
@@ -208,7 +205,7 @@ def llama_sequential(model, dataloader, dev):
     return quantizers
 
 @torch.no_grad()
-def llama_eval(model, testenc, dev):
+def gemma_eval(model, testenc, dev):
     print('Evaluating ...')
 
     testenc = testenc.input_ids
@@ -255,7 +252,6 @@ def llama_eval(model, testenc, dev):
     position_ids = cache['position_ids']
 
     for i in range(len(layers)):
-        print(i)
         layer = layers[i].to(dev)
         
         if args.nearest:
@@ -272,7 +268,7 @@ def llama_eval(model, testenc, dev):
                 ).to(next(iter(layer.parameters())).dtype)
 
         for j in range(nsamples):
-            outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+            outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids, cache_position = position_ids.squeeze())[0]
         layers[i] = layer.cpu()
         del layer
         torch.cuda.empty_cache()
@@ -299,7 +295,7 @@ def llama_eval(model, testenc, dev):
         nlls.append(neg_log_likelihood)
     ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * model.seqlen))
     print(ppl.item())
-    with open("./quant_bit/llama_ppl.txt", "a") as f:
+    with open("./quant_bit/gemma_ppl.txt", "a") as f:
         f.write(f"model = {str(args.model).split('/')[-1]}, wbits = {args.wbits}, groupsize = {args.groupsize}, lut = {args.lut_eval}, nonLinear = {args.non_linear}, columnwise = {args.columnwise}   :   {ppl.item()}")
         
         if args.non_linear:
@@ -325,7 +321,7 @@ def llama_eval(model, testenc, dev):
 
     model.config.use_cache = use_cache
 
-def llama_pack3(model, quantizers):
+def gemma_pack3(model, quantizers):
     layers = find_layers(model)
     layers = {n: layers[n] for n in quantizers}
     make_quant3(model, quantizers)
@@ -347,7 +343,7 @@ if __name__ == '__main__':
 
     parser.add_argument(
         'model', type=str,
-        help='LlaMa model to load; pass location of hugginface converted checkpoint.'
+        help='gemma model to load; pass location of hugginface converted checkpoint.'
     )
     parser.add_argument(
         'dataset', type=str, choices=['wikitext2', 'ptb', 'c4'],
@@ -458,8 +454,9 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    model = get_llama(args.model)
+    model = get_gemma(args.model)
     model.eval()
+    print(model)
 
     dataloader, testloader = get_loaders(
         args.dataset, nsamples=args.nsamples, seed=args.seed, model=args.model, seqlen=model.seqlen
@@ -467,10 +464,10 @@ if __name__ == '__main__':
 
     if args.wbits < 16 and not args.nearest:
         tick = time.time()
-        quantizers = llama_sequential(model, dataloader, DEV)
+        quantizers = gemma_sequential(model, dataloader, DEV)
         print(time.time() - tick)
 
-    datasets = ['wikitext2', 'ptb', 'c4'] 
+    datasets = ['wikitext2', 'ptb'] 
     if args.new_eval:
         datasets = ['wikitext2', 'ptb-new', 'c4-new']
     for dataset in datasets:
@@ -478,9 +475,8 @@ if __name__ == '__main__':
             dataset, seed=args.seed, model=args.model, seqlen=model.seqlen
         )
         print(dataset)
-        llama_eval(model, testloader, DEV)
+        gemma_eval(model, testloader, DEV)
 
     if args.save:
-        llama_pack3(model, quantizers)
+        gemma_pack3(model, quantizers)
         torch.save(model.state_dict(), args.save)
-

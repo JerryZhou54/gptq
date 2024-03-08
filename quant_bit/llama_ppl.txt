@@ -1,0 +1,29 @@
+model = llama-2-7b, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   5.473148345947266
+model = llama-2-7b, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   20.849058151245117
+model = llama-2-7b-chat, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   7.082613945007324
+model = llama-2-7b-chat, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   26.609012603759766
+model = llama-2-13b, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   4.885936737060547
+model = llama-2-13b-chat, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   6.111631870269775
+model = llama-2-13b, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   28.890718460083008
+model = llama-2-13b-chat, wbits = 16, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   28.27100372314453
+
+============================== optq ============================
+model = llama-2-7b, wbits = 4, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   7.765562534332275
+model = llama-2-7b, wbits = 4, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   50210.49609375
+model = llama-2-7b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   40.57770919799805
+model = llama-2-7b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   46988.26953125
+model = llama-2-7b, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   15215.685546875
+model = llama-2-7b, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   65132.8125
+model = llama-2-7b-chat, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   50390.578125
+model = llama-2-7b-chat, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   44197.71484375
+model = llama-2-7b-chat, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   158.76010131835938
+model = llama-2-7b-chat, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   15649.01171875
+model = llama-2-7b-chat, wbits = 4, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   8.533217430114746
+model = llama-2-7b-chat, wbits = 4, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   8736.408203125
+model = llama-2-13b, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   13314.5224609375
+model = llama-2-13b, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   11260.7841796875
+model = llama-2-13b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   10.678900718688965
+model = llama-2-13b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   156.98062133789062
+model = llama-2-13b, wbits = 4, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   5.3955278396606445
+model = llama-2-13b, wbits = 4, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   32.66448211669922
+
