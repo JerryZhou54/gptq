@@ -174,6 +174,13 @@ def opt_sequential(model, dataloader, dev):
         for name in subset:
             print(i, name)
             print('Quantizing ...')
+            if "fc1" in name or "fc2" in name or "out_proj" in name:
+                args.columnwise = False
+                args.lut_eval = True
+            else:
+                args.columnwise = True
+                args.lut_eval = False
+
             gptq[name].fasterquant(
                 blocksize=128,
                 percdamp=args.percdamp, groupsize=args.groupsize, 

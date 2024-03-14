@@ -8,7 +8,7 @@ from .utils import CompressionParameter, PACKER
 class BCQParameter(CompressionParameter):
     def compress(self, do_packing=False, in_ch_wise=False, **kwargs):
         global PACKER
-        _, binary, alpha, _ = quantize_shift(self.data, transpose=in_ch_wise, **kwargs)
+        _, binary, alpha, _, _ = quantize_shift(self.data, transpose=in_ch_wise, **kwargs)
 
         binary_shape = binary.shape
         if do_packing == True:

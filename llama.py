@@ -9,6 +9,9 @@ from gptq import *
 from modelutils import *
 from quant import *
 
+
+from bcq_quant.quant_model_bcq import quant_model
+from lut_gemm.quant import load_lut
 from bcq_quant.quantizer import BCQuantizer
 from nonLinear_quant import NonLinearQuantizer
 
@@ -461,10 +464,14 @@ if __name__ == '__main__':
         args.dataset, nsamples=args.nsamples, seed=args.seed, model=args.model, seqlen=model.seqlen
     )
 
-    if args.wbits < 16 and not args.nearest:
+    if args.wbits < 16 and not args.nearest and not args.lut_bench:
         tick = time.time()
-        quantizers = llama_sequential(model, dataloader, DEV)
-        print(time.time() - tick)
+        if args.bcq:
+            print("quantizing with bcq")
+            model = quant_model(model, qbits=args.wbits, group_size=args.groupsize)
+        else:
+            quantizers = llama_sequential(model, dataloader, DEV)
+        print("full quantization time: ",time.time() - tick)
 
     datasets = ['wikitext2', 'ptb'] 
     if args.new_eval:

@@ -127,105 +127,108 @@ class GPTQ:
 
         # if lut_quant:
         #     print(self.quantizer.alpha[0:5,0,:])
-        sensitive_block_idx = []
-        for _ in range(2):
-            for i1 in tqdm(range(0, self.columns, blocksize), desc=layer_name, leave=False):
-                i2 = min(i1 + blocksize, self.columns)
-                count = i2 - i1
+        # sensitive_block_idx = []
+        # for _ in range(2):
+        for i1 in tqdm(range(0, self.columns, blocksize), desc=layer_name, leave=False):
+            i2 = min(i1 + blocksize, self.columns)
+            count = i2 - i1
 
-                W1 = W[:, i1:i2].clone()
-                Q1 = torch.zeros_like(W1)
-                Err1 = torch.zeros_like(W1)
-                Losses1 = torch.zeros_like(W1)
-                Hinv1 = Hinv[i1:i2, i1:i2]
+            W1 = W[:, i1:i2].clone()
+            Q1 = torch.zeros_like(W1)
+            Err1 = torch.zeros_like(W1)
+            Losses1 = torch.zeros_like(W1)
+            Hinv1 = Hinv[i1:i2, i1:i2]
 
-                for i in range(count):
-                    w = W1[:, i]
-                    d = Hinv1[i, i]
+            for i in range(count):
+                w = W1[:, i]
+                d = Hinv1[i, i]
 
-                    if lut_quant:
-                        
-                        if groupsize != -1:
+                if lut_quant:
+                    
+                    if groupsize != -1:
+                        idx = i1 + i
+                        if actorder:
+                            idx = perm[idx]
+                        group = idx // groupsize
+                    else:
+                        group = 0
+                    alpha = self.quantizer.alpha[:,group,:].unsqueeze(1)
+                    q, BinaryWeight = bcq_quantize(w.unsqueeze(1), alpha, groupsize=-1)
+                    q = q.flatten()
+                elif non_linear_quant:
+                    if groupsize != -1:
+                        if not static_groups:
+                            if (i1 + i) % groupsize == 0:
+                                self.quantizer.find_params(W[:, (i1 + i):(i1 + i + groupsize)], weight=True)
+                        else:
                             idx = i1 + i
                             if actorder:
                                 idx = perm[idx]
-                            group = idx // groupsize
-                        else:
-                            group = 0
-                        alpha = self.quantizer.alpha[:,group,:].unsqueeze(1)
-                        q, BinaryWeight = bcq_quantize(w.unsqueeze(1), alpha, groupsize=-1)
-                        q = q.flatten()
-                    elif non_linear_quant:
-                        if groupsize != -1:
-                            if not static_groups:
-                                if (i1 + i) % groupsize == 0:
-                                    self.quantizer.find_params(W[:, (i1 + i):(i1 + i + groupsize)], weight=True)
-                            else:
-                                idx = i1 + i
-                                if actorder:
-                                    idx = perm[idx]
-                                self.quantizer = groups[idx // groupsize]
-                        q = self.quantizer.quantize(w.unsqueeze(1)).flatten()
+                            self.quantizer = groups[idx // groupsize]
+                    q = self.quantizer.quantize(w.unsqueeze(1)).flatten()
 
-                    elif columnwise:
-                        # wf = torch.ones(w.unsqueeze(0).shape, dtype=w.dtype, device=w.device) / d 
-                        wf = None
-                        q, BinaryWeight, alpha, _, scale  = quantize_shift(w.unsqueeze(0),\
-                                qbits=self.quantizer.wbits if i1+i not in sensitive_block_idx else self.quantizer.wbits+1, 
-                                group_size=groupsize, rounds=self.quantizer.rounds, wf = wf, 
+                elif columnwise:
+                    # wf = torch.ones(w.unsqueeze(0).shape, dtype=w.dtype, device=w.device) / d 
+                    # wf = None
+                    # q, BinaryWeight, alpha, _, scale  = quantize_shift(w.unsqueeze(0),\
+                    #         # qbits=self.quantizer.wbits if i1+i not in sensitive_block_idx else self.quantizer.wbits+1, 
+                    #         qbits=self.quantizer.wbits, 
+                    #         group_size=groupsize, rounds=self.quantizer.rounds, wf = wf, 
+                    #         use_bst=self.quantizer.use_bst, apot_nums=self.quantizer.apot_nums)
+                    # q = q.flatten()
+
+                    wf = None
+                    if i % 8 == 0:
+                        w_8column = W1[:, i:i+8].flatten()
+                        q, BinaryWeight, alpha, _, scale  = quantize_shift(w_8column.unsqueeze(0),
+                    #            qbits=self.quantizer.wbits if i1+i not in sensitive_block_idx else self.quantizer.wbits+1,
+                                qbits=self.quantizer.wbits,
+                                group_size=groupsize * 8 if groupsize != -1 else -1, 
+                                rounds=self.quantizer.rounds, wf = wf, 
                                 use_bst=self.quantizer.use_bst, apot_nums=self.quantizer.apot_nums)
-                        q = q.flatten()
+                    q, BinaryWeight = bcq_quantize(w.unsqueeze(0), alpha, groupsize=groupsize, use_bst=self.quantizer.use_bst)
+                    q = q.flatten()
 
-                        # wf = None
-                        # if i % 8 == 0:
-                        #     w_8column = W1[:, i:i+8].flatten()
-                        #     q, BinaryWeight, alpha, _, scale  = quantize_shift(w_8column.unsqueeze(0),
-                        #             qbits=self.quantizer.wbits if i1+i not in sensitive_block_idx else self.quantizer.wbits+1,
-                        #             group_size=groupsize * 8 if groupsize != -1 else -1, 
-                        #             rounds=self.quantizer.rounds, wf = wf, 
-                        #             use_bst=self.quantizer.use_bst, apot_nums=self.quantizer.apot_nums)
-                        # q, BinaryWeight = bcq_quantize(w.unsqueeze(0), alpha, groupsize=groupsize, use_bst=self.quantizer.use_bst)
-                        # q = q.flatten()
+                else:
+                    if groupsize != -1:
+                        if not static_groups:
+                            if (i1 + i) % groupsize == 0:
+                                self.quantizer.find_params(W[:, (i1 + i):(i1 + i + groupsize)], weight=True)
+                        else:
+                            idx = i1 + i
+                            if actorder:
+                                idx = perm[idx]
+                            self.quantizer = groups[idx // groupsize]
 
-                    else:
-                        if groupsize != -1:
-                            if not static_groups:
-                                if (i1 + i) % groupsize == 0:
-                                    self.quantizer.find_params(W[:, (i1 + i):(i1 + i + groupsize)], weight=True)
-                            else:
-                                idx = i1 + i
-                                if actorder:
-                                    idx = perm[idx]
-                                self.quantizer = groups[idx // groupsize]
+                    q = quantize(
+                        w.unsqueeze(1), self.quantizer.scale, self.quantizer.zero, self.quantizer.maxq
+                    ).flatten()
 
-                        q = quantize(
-                            w.unsqueeze(1), self.quantizer.scale, self.quantizer.zero, self.quantizer.maxq
-                        ).flatten()
+                Q1[:, i] = q
+                Losses1[:, i] = (w - q) ** 2 / d ** 2
 
-                    Q1[:, i] = q
-                    Losses1[:, i] = (w - q) ** 2 / d ** 2
+                err1 = (w - q) / d
+                W1[:, i:] -= err1.unsqueeze(1).matmul(Hinv1[i, i:].unsqueeze(0))
+                Err1[:, i] = err1
 
-                    err1 = (w - q) / d
-                    W1[:, i:] -= err1.unsqueeze(1).matmul(Hinv1[i, i:].unsqueeze(0))
-                    Err1[:, i] = err1
+            Q[:, i1:i2] = Q1
+            Losses[:, i1:i2] = Losses1 / 2
 
-                Q[:, i1:i2] = Q1
-                Losses[:, i1:i2] = Losses1 / 2
+            W[:, i2:] -= Err1.matmul(Hinv[i1:i2, i2:])
 
-                W[:, i2:] -= Err1.matmul(Hinv[i1:i2, i2:])
-
-                if DEBUG:
-                    self.layer.weight.data[:, :i2] = Q[:, :i2]
-                    self.layer.weight.data[:, i2:] = W[:, i2:]
-                    print(torch.sum((self.layer(self.inp1) - self.out1) ** 2))
-                    print(torch.sum(Losses))
+            if DEBUG:
+                self.layer.weight.data[:, :i2] = Q[:, :i2]
+                self.layer.weight.data[:, i2:] = W[:, i2:]
+                print(torch.sum((self.layer(self.inp1) - self.out1) ** 2))
+                print(torch.sum(Losses))
 
             # Q_block = Q.norm(dim=0).view(-1, 8).sum(dim=1)
             # _, idx = Q_block.topk(int(self.columns/8 * 0.05))
             # sensitive_block_idx = idx * 8
-            Q_block = Q.norm(dim=0)
-            _, idx = Q_block.topk(int(self.columns * 0.05))
-            sensitive_block_idx = idx      
+                    
+            # Q_block = Q.norm(dim=0)
+            # _, idx = Q_block.topk(int(self.columns * 0.05))
+            # sensitive_block_idx = idx      
 
         torch.cuda.synchronize()
         print('time %.2f' % (time.time() - tick))
