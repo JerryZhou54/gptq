@@ -564,6 +564,15 @@ if __name__ == '__main__':
         help='Whether to use static groups; recommended when using `--actorder` for more efficient inference.'
     )
 
+    parser.add_argument(
+        '--load_weights', type=str, default=None,
+        help='weights file to load. None for no weights.'
+    )
+    parser.add_argument(
+        '--load_safetensor', action='store_true', default=True,
+        help='Whether to load from a safetensor file.'
+    )
+
     # bcq quant - LUT-gemm
     parser.add_argument(
         '--bcq', action='store_true', help='Quantize weight with bcq.'
@@ -630,6 +639,17 @@ if __name__ == '__main__':
         model = get_opt(args.model)
         model.eval()
     print(model)
+
+    if args.load_weights is not None:
+        if args.load_safetensor:
+            from safetensors import safe_open
+            ckpt_weights = {}
+            with safe_open(args.load_weights, framework="pt", device='cpu') as f:
+                for k in f.keys():
+                    ckpt_weights[k] = f.get_tensor(k)
+            model.load_state_dict(ckpt_weights, strict=False)
+        else:
+            model.load_state_dict(torch.load(args.load_weights), strict=True)
 
     dataloader, testloader = get_loaders(
         args.dataset, nsamples=args.nsamples, seed=args.seed, model=args.model, seqlen=model.seqlen
