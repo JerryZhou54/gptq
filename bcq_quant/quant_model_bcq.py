@@ -2,15 +2,6 @@ import torch
 import transformers
 import argparse
 
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    set_seed,
-    Seq2SeqTrainer,
-    GPTQConfig,
-    LlamaTokenizer
-
-)
 
 # from rtn_parameter import RTNParameter
 from .bcq_parameter import BCQParameter

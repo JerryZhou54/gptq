@@ -9,7 +9,7 @@ from modelutils import *
 from quant import *
 
 from bcq_quant.quant_model_bcq import quant_model
-from lut_gemm.quant import load_lut
+# from lut_gemm.quant import load_lut
 from bcq_quant.quantizer import BCQuantizer
 from nonLinear_quant import NonLinearQuantizer
 from plot_activation import plot_distribution
@@ -103,7 +103,7 @@ def opt_sequential(model, dataloader, dev):
             gptq[name] = GPTQ(subset[name])
             if args.layermix:
                 if args.lut_eval or args.columnwise:
-                    gptq[name].quantizer = BCQuantizer(subset[name] if args.lut_eval else nn.Linear(1, 1),
+                    gptq[name].quantizer = BCQuantizer(subset[name].weight.data.size(),
                                                        groupsize=args.groupsize, 
                                                        wbits=layer_wbit[i],
                                                        rounds=args.bcq_round,
@@ -122,7 +122,7 @@ def opt_sequential(model, dataloader, dev):
                     )
             elif args.linearmix:
                 if args.lut_eval or args.columnwise:
-                    gptq[name].quantizer = BCQuantizer(subset[name] if args.lut_eval else nn.Linear(1, 1),
+                    gptq[name].quantizer = BCQuantizer(subset[name].weight.data.size(),
                                                        groupsize=args.groupsize, 
                                                        wbits=linear_wbit[name.split(".")[-1]],
                                                        rounds=args.bcq_round,
@@ -141,7 +141,7 @@ def opt_sequential(model, dataloader, dev):
                     )
             else:
                 if args.lut_eval or args.columnwise:
-                    gptq[name].quantizer = BCQuantizer(subset[name] if args.lut_eval else nn.Linear(1, 1),
+                    gptq[name].quantizer = BCQuantizer(subset[name].weight.data.size(),
                                                        groupsize=args.groupsize, 
                                                        wbits=args.wbits,
                                                        rounds=args.bcq_round,

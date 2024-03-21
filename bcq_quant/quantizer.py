@@ -38,7 +38,7 @@ def quantize(x, alpha, groupsize = -1, use_bst=True):
 
 class BCQuantizer(nn.Module):
 
-    def __init__(self, layer, groupsize=-1, wbits=3, rounds = 5, use_bst=True, apot_nums=1):
+    def __init__(self, shape, groupsize=-1, wbits=3, rounds = 5, use_bst=True, apot_nums=1):
         super(BCQuantizer, self).__init__()
 
         self.wbits = wbits
@@ -47,8 +47,7 @@ class BCQuantizer(nn.Module):
         self.use_bst = use_bst
         self.apot_nums = apot_nums
 
-        W = layer.weight.data
-        N, K = W.shape
+        N, K = shape
         if groupsize == -1:
             num_group = 1
         else:
