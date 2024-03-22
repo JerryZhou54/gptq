@@ -91,6 +91,12 @@ def opt_sequential(model, dataloader, dev):
             linear_wbit = json.load(f)
         print(f"linear_wbit: {linear_wbit}")
 
+    quant_config_dict = None
+    if args.quant_config:
+        import json
+        with open(args.quant_config, "r") as f:
+            quant_config_dict = json.load(f)
+        print(f"quant_config: {quant_config_dict}")
     print('Ready.')
 
     quantizers = {}
@@ -101,7 +107,16 @@ def opt_sequential(model, dataloader, dev):
         gptq = {}
         for name in subset:
             gptq[name] = GPTQ(subset[name])
-            if args.layermix:
+
+            if args.quant_config:
+                gptq[name].quantizer = BCQuantizer(subset[name].weight.data.size(),
+                                                    groupsize=args.groupsize, 
+                                                    wbits=quant_config_dict['model.decoder.layers.%d.%s' % (i, name)]["bits"],
+                                                    rounds=args.bcq_round,
+                                                    use_bst=args.use_bst, 
+                                                    apot_nums=args.apot_nums)
+
+            elif args.layermix:
                 if args.lut_eval or args.columnwise:
                     gptq[name].quantizer = BCQuantizer(subset[name].weight.data.size(),
                                                        groupsize=args.groupsize, 
@@ -174,12 +189,17 @@ def opt_sequential(model, dataloader, dev):
         for name in subset:
             print(i, name)
             print('Quantizing ...')
-            if "fc1" in name or "fc2" in name or "out_proj" in name:
-                args.columnwise = False
-                args.lut_eval = True
-            else:
-                args.columnwise = True
-                args.lut_eval = False
+            if quant_config_dict is not None:
+                is_column = quant_config_dict['model.decoder.layers.%d.%s' % (i, name)]["columnwise"]
+            # if "fc1" in name or "fc2" in name or "out_proj" in name:
+                if not is_column:
+                    args.columnwise = False
+                    args.lut_eval = True
+                else:
+                    print("column wise")
+                    args.columnwise = True
+                    args.lut_eval = False
+
 
             gptq[name].fasterquant(
                 blocksize=128,
@@ -627,6 +647,11 @@ if __name__ == '__main__':
     parser.add_argument(
         '--layermix', action='store_true',
         help='Whether to use different wbit for different layer.'
+    )
+
+    parser.add_argument(
+        '--quant_config', type=str, default=None,
+        help='path for quantization config.'
     )
 
     args = parser.parse_args()
