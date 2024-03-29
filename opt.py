@@ -189,12 +189,14 @@ def opt_sequential(model, dataloader, dev):
         for name in subset:
             print(i, name)
             print('Quantizing ...')
+            groupsize = args.groupsize
             if quant_config_dict is not None:
                 is_column = quant_config_dict['model.decoder.layers.%d.%s' % (i, name)]["columnwise"]
             # if "fc1" in name or "fc2" in name or "out_proj" in name:
                 if not is_column:
                     args.columnwise = False
                     args.lut_eval = True
+                    groupsize = -1
                 else:
                     print("column wise")
                     args.columnwise = True
@@ -203,7 +205,7 @@ def opt_sequential(model, dataloader, dev):
 
             gptq[name].fasterquant(
                 blocksize=128,
-                percdamp=args.percdamp, groupsize=args.groupsize, 
+                percdamp=args.percdamp, groupsize=groupsize, 
                 actorder=args.act_order, static_groups=args.static_groups, 
                 model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
                 lut_quant=args.lut_eval, non_linear_quant=args.non_linear, columnwise=args.columnwise
