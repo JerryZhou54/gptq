@@ -157,9 +157,9 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     alpha = alpha.reshape([orig_shape[0], orig_shape[1] // group_size, qbits])
     # scale = scale.reshape([orig_shape[0], orig_shape[1] // group_size])
 
-    # B = B.to('cpu')
+    B = B.to('cpu')
     # alpha = alpha.to('cpu')
-    # scale = scale.to('cpu')
+
     torch.cuda.empty_cache()
     scale = None
     return ret, B, alpha, (wf != 0.0), scale

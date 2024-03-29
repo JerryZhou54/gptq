@@ -339,19 +339,19 @@ def opt_eval(model, testenc, dev):
             f.write(f"  ||  bcq_round = {args.bcq_round}")
             f.write(f"  ||  apot_nums = {args.apot_nums} use_bst = {args.use_bst}")
 
-        if args.layermix:
-            import json
-            with open("./quant_bit/layerwise.json", "r") as f:
-                layer_wbit_dict = json.load(f)
-                model_name = str(args.model).split("/")[-1]
-                layer_wbit = layer_wbit_dict[model_name]
-            f.write(f"  ||  layerMix_wbit = {layer_wbit}")
+        # if args.layermix:
+        #     import json
+        #     with open("./quant_bit/layerwise.json", "r") as f:
+        #         layer_wbit_dict = json.load(f)
+        #         model_name = str(args.model).split("/")[-1]
+        #         layer_wbit = layer_wbit_dict[model_name]
+        #     f.write(f"  ||  layerMix_wbit = {layer_wbit}")
         
-        if args.linearmix:
-            import json
-            with open("./quant_bit/linearwise.json", "r") as f:
-                linear_wbit = json.load(f)
-            f.write(f"  ||  linearMix_wbit = {linear_wbit}")
+        # if args.linearmix:
+        #     import json
+        #     with open("./quant_bit/linearwise.json", "r") as f:
+        #         linear_wbit = json.load(f)
+        #     f.write(f"  ||  linearMix_wbit = {linear_wbit}")
         f.write("\n")
 
     model.config.use_cache = use_cache
