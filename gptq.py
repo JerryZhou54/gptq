@@ -64,9 +64,68 @@ class GPTQ:
         # self.H += 2 / self.nsamples * inp.matmul(inp.t())
         self.H += inp.matmul(inp.t())
 
+    def analyse(self, percdamp=0.01):
+        result = {
+            "rowwise": {"w": {"max": None, "min": None, "mean": None, "std": None}, # analysis of weight
+                        "wa" : { "max": None, "min": None, "mean": None, "std": None}, # analysis of weight * activation
+                        "wh" : { "max": None, "min": None, "mean": None, "std": None}, # analysis of weight / hessian
+            },
+            "columnWise": {"w": {"max": None, "min": None, "mean": None, "std": None}, # analysis of weight
+                        "wa" : { "max": None, "min": None, "mean": None, "std": None}, # analysis of weight * activation
+                        "wh" : { "max": None, "min": None, "mean": None, "std": None}, # analysis of weight / hessian
+            },
+        }
+        W = self.layer.weight.data.clone()
+        W = W.float()
+        H = self.H
+        del self.H
+        dead = torch.diag(H) == 0
+        H[dead, dead] = 1
+        W[:, dead] = 0
+        damp = percdamp * torch.mean(torch.diag(H))
+        diag = torch.arange(self.columns, device=self.dev)
+        H[diag, diag] += damp
+        H = torch.linalg.cholesky(H)
+        H = torch.cholesky_inverse(H)
+        H = torch.linalg.cholesky(H, upper=True)
+
+        # analysis of weight
+        result["rowwise"]["w"]["max"] = W.max(dim=1).values
+        result["rowwise"]["w"]["min"] = W.min(dim=1).values
+        result["rowwise"]["w"]["mean"] = W.mean(dim=1)
+        result["rowwise"]["w"]["std"] = W.std(dim=1)
+        result["columnWise"]["w"]["max"] = W.max(dim=0).values
+        result["columnWise"]["w"]["min"] = W.min(dim=0).values
+        result["columnWise"]["w"]["mean"] = W.mean(dim=0)
+        result["columnWise"]["w"]["std"] = W.std(dim=0)
+
+        # analysis of weight * activation
+        weightAct = W * self.input.repeat(self.rows, 1) 
+        result["rowwise"]["wa"]["max"] = weightAct.max(dim=1).values
+        result["rowwise"]["wa"]["min"] = weightAct.min(dim=1).values
+        result["rowwise"]["wa"]["mean"] = weightAct.mean(dim=1)
+        result["rowwise"]["wa"]["std"] = weightAct.std(dim=1)
+        result["columnWise"]["wa"]["max"] = weightAct.max(dim=0).values
+        result["columnWise"]["wa"]["min"] = weightAct.min(dim=0).values
+        result["columnWise"]["wa"]["mean"] = weightAct.mean(dim=0)
+        result["columnWise"]["wa"]["std"] = weightAct.std(dim=0)
+
+
+        weightH = W / torch.diag(H).repeat(self.rows, 1) 
+        result["rowwise"]["wa"]["max"] = weightH.max(dim=1).values
+        result["rowwise"]["wa"]["min"] = weightH.min(dim=1).values
+        result["rowwise"]["wa"]["mean"] = weightH.mean(dim=1)
+        result["rowwise"]["wa"]["std"] = weightH.std(dim=1)
+        result["columnWise"]["wa"]["max"] = weightH.max(dim=0).values
+        result["columnWise"]["wa"]["min"] = weightH.min(dim=0).values
+        result["columnWise"]["wa"]["mean"] = weightH.mean(dim=0)
+        result["columnWise"]["wa"]["std"] = weightH.std(dim=0)
+
+        return result
+
     def fasterquant(
         self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, static_groups=False, 
-        model_name = "opt", layer_name = "layer", lut_quant=False, non_linear_quant=False, columnwise=False
+        model_name = "opt", layer_name = "layer", lut_quant=False, non_linear_quant=False, columnwise=False,
     ):
         W = self.layer.weight.data.clone()
         if isinstance(self.layer, nn.Conv2d):
