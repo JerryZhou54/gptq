@@ -265,6 +265,48 @@ __global__ void VecQuant3MatMulKernel(
 }
 
 
+void lutgemm_compute_shift_scale_cuda(
+   torch::Tensor output,
+  torch::Tensor bWeight,
+  torch::Tensor alpha,
+  torch::Tensor d_input,
+  int mSize, int kSize, int nb,  int num_groups
+) {
+  //printf("size: [%d %d] [%d %d]\n", d_input.size(0), d_input.size(-1), output.size(0), output.size(-1));
+  int batch = d_input.size(0), in_size = d_input.size(-1), out_size = output.size(-1);
+
+      __half * d_input_ptr = (__half*)d_input.data<at::Half>();
+     __half * output_ptr = (__half*)output.data<at::Half>();
+      uint32_t*bWeight_ptr = (uint32_t*)bWeight.data<int32_t>();
+       __half* alpha_ptr = (__half*)alpha.data<at::Half>();
+//output, uint32_t*bWeight, __half* alpha,__half*q_bias, 
+//int mSize, int kSize, int nb,  int num_groups, __half *input, int algo
+    nqmv_bias_shift_mulq(output_ptr, bWeight_ptr, alpha_ptr,
+mSize, kSize, nb,  num_groups, d_input_ptr, 0, batch, in_size, out_size);
+
+}
+
+
+
+void lutgemm_compute_shift_scale_shift1_cuda(
+   torch::Tensor output,
+  torch::Tensor bWeight,
+  torch::Tensor alpha,
+  torch::Tensor d_input,
+  int mSize, int kSize, int nb,  int num_groups
+) {
+  int batch = d_input.size(0), in_size = d_input.size(-1), out_size = output.size(-1);
+
+      __half * d_input_ptr = (__half*)d_input.data<at::Half>();
+     __half * output_ptr = (__half*)output.data<at::Half>();
+      uint32_t*bWeight_ptr = (uint32_t*)bWeight.data<int32_t>();
+       __half* alpha_ptr = (__half*)alpha.data<at::Half>();
+//output, uint32_t*bWeight, __half* alpha,__half*q_bias, 
+//int mSize, int kSize, int nb,  int num_groups, __half *input, int algo
+    nqmv_bias_shift_mulq_shift1(output_ptr, bWeight_ptr, alpha_ptr,
+mSize, kSize, nb,  num_groups, d_input_ptr, 0, batch, in_size, out_size);
+
+}
 
 
 void lutgemm_cuda(

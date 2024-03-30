@@ -20,6 +20,38 @@ void lutgemm_cuda(torch::Tensor output,
   torch::Tensor q_bias,
   torch::Tensor d_input, int mSize, int kSize, int nb,  int num_groups);
 
+void lutgemm_compute_shift_scale_cuda(torch::Tensor output,
+  torch::Tensor bWeight,
+  torch::Tensor alpha,
+  torch::Tensor d_input, int mSize, int kSize, int nb,  int num_groups);
+
+void lutgemm_compute_shift_scale_shift1_cuda(torch::Tensor output,
+  torch::Tensor bWeight,
+  torch::Tensor alpha,
+  torch::Tensor d_input, int mSize, int kSize, int nb,  int num_groups);
+
+
+void lutgemm_compute_shift_scale(
+  torch::Tensor output,
+  torch::Tensor bWeight,
+  torch::Tensor alpha,
+  torch::Tensor d_input,
+  int mSize, int kSize, int nb,  int num_groups
+) {
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(output));
+  lutgemm_compute_shift_scale_cuda(output, bWeight, alpha, d_input, mSize,  kSize,  nb,   num_groups);
+}
+
+void lutgemm_compute_shift_scale_shift1(
+  torch::Tensor output,
+  torch::Tensor bWeight,
+  torch::Tensor alpha,
+  torch::Tensor d_input,
+  int mSize, int kSize, int nb,  int num_groups
+) {
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(output));
+  lutgemm_compute_shift_scale_shift1_cuda(output, bWeight, alpha, d_input, mSize,  kSize,  nb,   num_groups);
+}
 
 void lutgemm_compute(
   torch::Tensor output,
@@ -160,6 +192,8 @@ std::vector<torch::Tensor> parsing(torch::Tensor bW, torch::Tensor A, int row, i
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("lutgemm_compute", &lutgemm_compute, "Vector 3-bit Quantized Matrix Multiplication (CUDA)");
+  m.def("lutgemm_compute_shift_scale", &lutgemm_compute_shift_scale, "pass");
+  m.def("lutgemm_compute_shift_scale_shift1", &lutgemm_compute_shift_scale_shift1, "pass");
   m.def("makeRandomInput", &makeRandomInput, "Vector 3-bit Quantized Matrix Multiplication (CUDA)");
   m.def("makeRandomAlpha", &makeRandomAlpha, "Vector 3-bit Quantized Matrix Multiplication (CUDA)");
   m.def("makeRandomBias", &makeRandomBias, "Vector 3-bit Quantized Matrix Multiplication (CUDA)");
