@@ -208,7 +208,7 @@ def opt_sequential(model, dataloader, dev):
                 percdamp=args.percdamp, groupsize=groupsize, 
                 actorder=args.act_order, static_groups=args.static_groups, 
                 model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                lut_quant=args.lut_eval, non_linear_quant=args.non_linear, columnwise=args.columnwise
+                lut_quant=args.lut_eval, non_linear_quant=args.non_linear, columnwise=args.columnwise, block_quant=args.block_quant
             )
             quantizers['model.decoder.layers.%d.%s' % (i, name)] = gptq[name].quantizer
             gptq[name].free()
@@ -631,6 +631,10 @@ if __name__ == '__main__':
     parser.add_argument(
         '--columnwise', action='store_true',
         help='Use columnwise - bcq - round to power of 2 - quantization to evaluate model. Can be used with new cuda kernel.'
+    )
+    parser.add_argument(
+        '--block_quant', action='store_true',
+        help='!!Only work when columnwise, Use blockwise (8 column for 1 quantize param) - bcq - round to power of 2 - quantization to evaluate model.'
     )
     parser.add_argument(
         '--use_bst', action='store_true',default=False,

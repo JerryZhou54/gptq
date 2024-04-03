@@ -7,5 +7,5 @@ opt175b
 *.png
 
 /weight/*
-sensitivity
+# sensitivity
 finetune/weights
