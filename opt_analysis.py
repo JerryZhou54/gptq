@@ -1,8 +1,10 @@
 import time
 import math
+import bisect
 
 import torch
 import torch.nn as nn
+import numpy as np
 import json
 
 from gptq import *
@@ -167,9 +169,20 @@ if __name__ == '__main__':
         '--anaylse_method', type=str, default="w", choices=["w","wa","wh"],
         help='analysis sensitive on with value.'
     )
+    parser.add_argument(
+        '--mix_bits', type=str, default="0.0,0.8,0.2",
+        help='The proportion of each bits. index=0 for 1bits quant, index=1 for 2bits quant. as default, 80% 2bit and 20% 3bit'
+    )
     args = parser.parse_args()
 
+    args.mix_bits = str(args.mix_bits).split(",")
+    args.mix_bits = [float(each) for each in args.mix_bits]
+    assert sum(args.mix_bits) == 1, "The sum of the ratios of the mixed bits should be 1"
+    # get cumsum
+    args.mix_bits = np.cumsum(np.array(args.mix_bits)).tolist()
+    print(args.mix_bits)
 
+    # Metrics are counted from weights
     if not args.load_analyse_result:
         model = get_opt(args.model)
         model.eval()
@@ -197,29 +210,66 @@ if __name__ == '__main__':
         model_name = str(args.model).split("/")[-1]
         analysis_result = torch.load(f"./sensitivity/zeroshot/{model_name}.pth")
 
+    # Set up the quantization scheme for each layer
     model_quant_config = {}
+    weight_score = []
+    layers = []
     for each in analysis_result.keys():
-        layer_quant_config = {
-            "bits": 2,
-            "columnwise": False
-        }
-        if args.anaylse_method == "w":
-            row_layer_range = analysis_result[each]["rowwise"]["w"]["max"] - analysis_result[each]["rowwise"]["w"]["min"]
-            column_layer_range = analysis_result[each]["columnWise"]["w"]["max"] - analysis_result[each]["columnWise"]["w"]["min"]
-            std_row = torch.std(row_layer_range)
-            std_column = torch.std(column_layer_range)
-            layer_quant_config["columnwise"] = bool(std_column < std_row)
-        elif args.anaylse_method == "wa":
-            row_layer_range = analysis_result[each]["rowwise"]["wa"]["max"] - analysis_result[each]["rowwise"]["wa"]["min"]
-            column_layer_range = analysis_result[each]["columnWise"]["wa"]["max"] - analysis_result[each]["columnWise"]["wa"]["min"]
-            std_row = torch.std(row_layer_range)
-            std_column = torch.std(column_layer_range)
-            layer_quant_config["columnwise"] = bool(std_column < std_row)
-
-
-        model_quant_config[each] = layer_quant_config
+        if "fc" in each:
+            layers.extend(each for _ in range(4))
+        else:
+            layers.append(each)
     
 
+    for each in layers:
+        layer_quant_config = {
+            "bits": 2,
+            "columnwise": True,
+        }
+        # if args.anaylse_method == "w":
+        #     row_layer_range = analysis_result[each]["rowwise"]["w"]["max"] - analysis_result[each]["rowwise"]["w"]["min"]
+        #     column_layer_range = analysis_result[each]["columnWise"]["w"]["max"] - analysis_result[each]["columnWise"]["w"]["min"]
+        #     std_row = torch.std(row_layer_range)
+        #     std_column = torch.std(column_layer_range)
+        #     layer_quant_config["columnwise"] = bool(std_column < std_row)
+        # elif args.anaylse_method == "wa":
+        #     row_layer_range = analysis_result[each]["rowwise"]["wa"]["max"] - analysis_result[each]["rowwise"]["wa"]["min"]
+        #     column_layer_range = analysis_result[each]["columnWise"]["wa"]["max"] - analysis_result[each]["columnWise"]["wa"]["min"]
+        #     std_row = torch.std(row_layer_range)
+        #     std_column = torch.std(column_layer_range)
+        #     layer_quant_config["columnwise"] = bool(std_column < std_row)
+
+
+        if args.anaylse_method == "w":
+            column_layer_range = analysis_result[each]["columnWise"]["w"]["max"] - analysis_result[each]["columnWise"]["w"]["min"]
+            column_layer_std = analysis_result[each]["columnWise"]["w"]["std"]
+            
+
+        elif args.anaylse_method == "wa":
+            column_layer_range = analysis_result[each]["columnWise"]["wa"]["max"] - analysis_result[each]["columnWise"]["wa"]["min"]
+            column_layer_std = analysis_result[each]["columnWise"]["wa"]["std"]
+
+        weight_score.append(torch.max(column_layer_range * column_layer_std))
+        model_quant_config[each] = layer_quant_config
+
+    _, weight_score_index = torch.sort(torch.tensor(weight_score))
+
+    mix_bits = [each *  len(weight_score_index) for each in args.mix_bits]
+    for i, each in enumerate(weight_score_index):
+        model_quant_config[layers[each]]["bits"] = bisect.bisect(mix_bits, i) + 1
+
     print(model_quant_config)
+
+    # Statistical mixed bits averages
+    count = bits_sum = 0
+    for each in model_quant_config.keys():
+        if "fc" in each:
+            count += 4
+            bits_sum += 4 * model_quant_config[each]["bits"]
+        else:
+            count += 1
+            bits_sum += model_quant_config[each]["bits"]
+    print(f"mix bits avg: {bits_sum/count} bits")
+
     with open(f"./sensitivity/zeroshot/{model_name}-{args.anaylse_method}.json", "w") as f:
         json.dump(model_quant_config, f)
