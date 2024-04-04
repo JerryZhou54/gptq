@@ -9,3 +9,4 @@ opt175b
 /weight/*
 # sensitivity
 finetune/weights
+experiments/
