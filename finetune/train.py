@@ -43,17 +43,25 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     HfArgumentParser,
+    Seq2SeqTrainer,
     Trainer,
-    TrainingArguments,
     default_data_collator,
     is_torch_tpu_available,
     set_seed,
+    BitsAndBytesConfig,
 )
 from transformers.testing_utils import CaptureLogger
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
+from peft import (
+    prepare_model_for_kbit_training,
+    LoraConfig,
+    get_peft_model,
+    PeftModel
+)
+import bitsandbytes as bnb
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.35.0.dev0")
@@ -66,6 +74,91 @@ logger = logging.getLogger(__name__)
 MODEL_CONFIG_CLASSES = list(MODEL_FOR_CAUSAL_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
+
+@dataclass
+class TrainingArguments(transformers.Seq2SeqTrainingArguments):
+    train_on_source: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Whether to train on the input in addition to the target text."}
+    )
+    mmlu_split: Optional[str] = field(
+        default='eval',
+        metadata={"help": "The MMLU split to run on"}
+    )
+    mmlu_dataset: Optional[str] = field(
+        default='mmlu-fs',
+        metadata={"help": "MMLU dataset to use: options are `mmlu-zs` for zero-shot or `mmlu-fs` for few shot."}
+    )
+    do_mmlu_eval: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Whether to run the MMLU evaluation."}
+    )
+    max_mmlu_samples: Optional[int] = field(
+        default=None,
+        metadata={"help": "If set, only evaluates on `max_mmlu_samples` of the MMMLU dataset."}
+    )
+    mmlu_source_max_len: int = field(
+        default=2048,
+        metadata={"help": "Maximum source sequence length for mmlu."}
+    )
+    full_finetune: bool = field(
+        default=False,
+        metadata={"help": "Finetune the entire model without adapters."}
+    )
+    adam8bit: bool = field(
+        default=False,
+        metadata={"help": "Use 8-bit adam."}
+    )
+    double_quant: bool = field(
+        default=True,
+        metadata={"help": "Compress the quantization statistics through double quantization."}
+    )
+    quant_type: str = field(
+        default="nf4",
+        metadata={"help": "Quantization data type to use. Should be one of `fp4` or `nf4`."}
+    )
+    bits: int = field(
+        default=16,
+        metadata={"help": "How many bits to use."}
+    )
+    lora_r: int = field(
+        default=64,
+        metadata={"help": "Lora R dimension."}
+    )
+    lora_alpha: float = field(
+        default=16,
+        metadata={"help": " Lora alpha."}
+    )
+    lora_dropout: float = field(
+        default=0.0,
+        metadata={"help":"Lora dropout."}
+    )
+    max_memory_MB: int = field(
+        default=80000,
+        metadata={"help": "Free memory per gpu."}
+    )
+    report_to: str = field(
+        default='none',
+        metadata={"help": "To use wandb or something else for reporting."}
+    )
+    output_dir: str = field(default='./output', metadata={"help": 'The output dir for logs and checkpoints'})
+    optim: str = field(default='paged_adamw_32bit', metadata={"help": 'The optimizer to be used'})
+    per_device_train_batch_size: int = field(default=1, metadata={"help": 'The training batch size per GPU. Increase for better speed.'})
+    gradient_accumulation_steps: int = field(default=16, metadata={"help": 'How many gradients to accumulate before to perform an optimizer step'})
+    max_steps: int = field(default=10000, metadata={"help": 'How many optimizer update steps to take'})
+    weight_decay: float = field(default=0.0, metadata={"help": 'The L2 weight decay rate of AdamW'}) # use lora dropout instead for regularization if needed
+    learning_rate: float = field(default=0.0002, metadata={"help": 'The learnign rate'})
+    remove_unused_columns: bool = field(default=False, metadata={"help": 'Removed unused columns. Needed to make this codebase work.'})
+    max_grad_norm: float = field(default=0.3, metadata={"help": 'Gradient clipping max norm. This is tuned and works well for all models tested.'})
+    gradient_checkpointing: bool = field(default=True, metadata={"help": 'Use gradient checkpointing. You want to use this.'})
+    do_train: bool = field(default=True, metadata={"help": 'To train or not to train, that is the question?'})
+    lr_scheduler_type: str = field(default='constant', metadata={"help": 'Learning rate schedule. Constant a bit better than cosine, and has advantage for analysis'})
+    warmup_ratio: float = field(default=0.03, metadata={"help": 'Fraction of steps to do a warmup for'})
+    logging_steps: int = field(default=10, metadata={"help": 'The frequency of update steps after which to log the loss'})
+    group_by_length: bool = field(default=True, metadata={"help": 'Group sequences into batches with same length. Saves memory and speeds up training considerably.'})
+    save_strategy: str = field(default='steps', metadata={"help": 'When to save checkpoints'})
+    save_steps: int = field(default=250, metadata={"help": 'How often to save a model'})
+    save_total_limit: int = field(default=40, metadata={"help": 'How many checkpoints to save before the oldest is overwritten'})
 
 @dataclass
 class ModelArguments:
@@ -241,6 +334,19 @@ class DataTrainingArguments:
                 extension = self.validation_file.split(".")[-1]
                 assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
 
+
+def find_all_linear_names(args, model):
+    cls = bnb.nn.Linear4bit if args.bits == 4 else (bnb.nn.Linear8bitLt if args.bits == 8 else torch.nn.Linear)
+    lora_module_names = set()
+    for name, module in model.named_modules():
+        if isinstance(module, cls):
+            names = name.split('.')
+            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+
+
+    if 'lm_head' in lora_module_names: # needed for 16-bit
+        lora_module_names.remove('lm_head')
+    return list(lora_module_names)
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -444,11 +550,37 @@ def main():
             trust_remote_code=model_args.trust_remote_code,
             torch_dtype=torch_dtype,
             low_cpu_mem_usage=model_args.low_cpu_mem_usage,
+            quantization_config=BitsAndBytesConfig(
+                        load_in_4bit=training_args.bits == 4,
+                        load_in_8bit=training_args.bits == 8,
+                        llm_int8_threshold=6.0,
+                        llm_int8_has_fp16_weight=False,
+                        bnb_4bit_compute_dtype=torch.bfloat16,
+                        bnb_4bit_use_double_quant=training_args.double_quant,
+                        bnb_4bit_quant_type=training_args.quant_type,
+                    ) if training_args.bits == 4 or training_args.bits == 8 else None,
         )
     else:
         model = AutoModelForCausalLM.from_config(config, trust_remote_code=model_args.trust_remote_code)
         n_params = sum({p.data_ptr(): p.numel() for p in model.parameters()}.values())
         logger.info(f"Training new model from scratch - Total size={n_params/2**20:.2f}M params")
+
+    modules = find_all_linear_names(training_args, model)
+    config = LoraConfig(
+        r=training_args.lora_r,
+        lora_alpha=training_args.lora_alpha,
+        target_modules=modules,
+        lora_dropout=training_args.lora_dropout,
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+    model = get_peft_model(model, config)
+    [p.requires_grad_() for n, p in model.named_parameters() if any([k in n for k in "embed,norm".split(",")])]
+
+    if not os.path.exists(training_args.output_dir):
+        os.makedirs(training_args.output_dir)
+    with open(os.path.join(training_args.output_dir, "model.txt"), "w") as f:
+        f.write(str(model))
 
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
