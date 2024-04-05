@@ -20,13 +20,15 @@ def get_data(model_name):
 layer_names = list(get_data(model_name).keys())
 search_space = {}
 for layer in layer_names:
-    search_space[layer] = {'_type': 'choice', '_value': [1,2,3,4]},
+    search_space[layer] = {}
+    search_space[layer]["_type"] = "choice"
+    search_space[layer]["_value"] = [1,2,3,4]
     # search_space[layer + "/columnwise"] = {'_type': 'choice', '_value': [True, False]},
 
 command = f"CUDA_VISIBLE_DEVICES={CUDA_DEVICE} python opt.py \
     facebook/{model_name} \
     wikitext2 \
-    --wbits 2.2 \
+    --wbits 2 \
     --groupsize -1 \
     --columnwise \
     --bcq_round 50 \
@@ -49,10 +51,10 @@ experiment.config.experiment_working_directory = experiment_dir
 experiment.config.trial_code_directory = './'
 experiment.config.search_space = search_space
 experiment.config.tuner.name = 'Evolution'
-experiment.config.tuner.class_args['optimize_mode'] = 'maximize'
+experiment.config.tuner.class_args['optimize_mode'] = 'minimize'
 experiment.config.tuner.class_args['population_size'] = 100
 experiment.config.max_trial_number = 1000
-experiment.config.trial_concurrency = 2
+experiment.config.trial_concurrency = 3
 
 experiment.run(port)
 
