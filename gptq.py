@@ -125,7 +125,7 @@ class GPTQ:
 
     def fasterquant(
         self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, static_groups=False, 
-        model_name = "opt", layer_name = "layer", lut_quant=False, non_linear_quant=False, columnwise=False,
+        model_name = "opt", layer_name = "layer", lut_quant=False, non_linear_quant=False, columnwise=False, block_quant=False
     ):
         W = self.layer.weight.data.clone()
         if isinstance(self.layer, nn.Conv2d):
@@ -227,26 +227,25 @@ class GPTQ:
                     q = self.quantizer.quantize(w.unsqueeze(1)).flatten()
 
                 elif columnwise:
-                    # wf = torch.ones(w.unsqueeze(0).shape, dtype=w.dtype, device=w.device) / d 
-                    # wf = None
-                    # q, BinaryWeight, alpha, _, scale  = quantize_shift(w.unsqueeze(0),\
-                    #         # qbits=self.quantizer.wbits if i1+i not in sensitive_block_idx else self.quantizer.wbits+1, 
-                    #         qbits=self.quantizer.wbits, 
-                    #         group_size=groupsize, rounds=self.quantizer.rounds, wf = wf, 
-                    #         use_bst=self.quantizer.use_bst, apot_nums=self.quantizer.apot_nums)
-                    # q = q.flatten()
-
                     wf = None
-                    if i % 8 == 0:
-                        w_8column = W1[:, i:i+8].flatten()
-                        q, BinaryWeight, alpha, _, scale  = quantize_shift(w_8column.unsqueeze(0),
-                    #            qbits=self.quantizer.wbits if i1+i not in sensitive_block_idx else self.quantizer.wbits+1,
-                                qbits=self.quantizer.wbits,
-                                group_size=groupsize * 8 if groupsize != -1 else -1, 
-                                rounds=self.quantizer.rounds, wf = wf, 
+                    if block_quant:
+                        if i % 8 == 0:
+                            w_8column = W1[:, i:i+8].flatten()
+                            q, BinaryWeight, alpha, _, scale  = quantize_shift(w_8column.unsqueeze(0),
+                        #            qbits=self.quantizer.wbits if i1+i not in sensitive_block_idx else self.quantizer.wbits+1,
+                                    qbits=self.quantizer.wbits,
+                                    group_size=groupsize * 8 if groupsize != -1 else -1, 
+                                    rounds=self.quantizer.rounds, wf = wf, 
+                                    use_bst=self.quantizer.use_bst, apot_nums=self.quantizer.apot_nums)
+                        q, BinaryWeight = bcq_quantize(w.unsqueeze(0), alpha, groupsize=groupsize, use_bst=self.quantizer.use_bst)
+                        q = q.flatten()
+                    else:
+                        q, BinaryWeight, alpha, _, scale  = quantize_shift(w.unsqueeze(0),\
+                                # qbits=self.quantizer.wbits if i1+i not in sensitive_block_idx else self.quantizer.wbits+1, 
+                                qbits=self.quantizer.wbits, 
+                                group_size=groupsize, rounds=self.quantizer.rounds, wf = wf, 
                                 use_bst=self.quantizer.use_bst, apot_nums=self.quantizer.apot_nums)
-                    q, BinaryWeight = bcq_quantize(w.unsqueeze(0), alpha, groupsize=groupsize, use_bst=self.quantizer.use_bst)
-                    q = q.flatten()
+                        q = q.flatten()
 
                 else:
                     if groupsize != -1:
@@ -294,7 +293,7 @@ class GPTQ:
         print('error', torch.sum(Losses).item())
 
         # save layername and error to file
-        # with open(f"sensitivity/{model_name}.txt", "a+") as f:
+        # with open(f"sensitivity/{model_name}-{self.quantizer.wbits}bits-8column.txt", "a+") as f:
         #     f.write(f"{layer_name}: {str(torch.sum(Losses).item())}\n")
 
         if actorder:

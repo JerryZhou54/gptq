@@ -14,6 +14,8 @@ from bcq_quant.quantizer import BCQuantizer
 from nonLinear_quant import NonLinearQuantizer
 from plot_activation import plot_distribution
 
+import nni
+
 def get_opt(model):
     import torch
     def skip(*args, **kwargs):
@@ -97,6 +99,22 @@ def opt_sequential(model, dataloader, dev):
         with open(args.quant_config, "r") as f:
             quant_config_dict = json.load(f)
         print(f"quant_config: {quant_config_dict}")
+    if args.nni:
+        nni_config = nni.get_next_parameter()
+        quant_config_dict = {}
+
+        num = 0
+        bits = 0
+        for each in nni_config:
+            num += 4 if "fc" in each else 1
+            bits += 4*nni_config[each] if "fc" in each else nni_config[each]
+            quant_config_dict["model.decoder.layers." + each] = {"bits": nni_config[each], "columnwise": True}
+
+        if bits / num > args.mixbit:
+            nni.report_final_result(1000000000000)
+            exit()
+
+        print(f"quant_config: {quant_config_dict}")
     print('Ready.')
 
     quantizers = {}
@@ -108,7 +126,7 @@ def opt_sequential(model, dataloader, dev):
         for name in subset:
             gptq[name] = GPTQ(subset[name])
 
-            if args.quant_config:
+            if args.quant_config or args.nni:
                 gptq[name].quantizer = BCQuantizer(subset[name].weight.data.size(),
                                                     groupsize=args.groupsize, 
                                                     wbits=quant_config_dict['model.decoder.layers.%d.%s' % (i, name)]["bits"],
@@ -208,7 +226,7 @@ def opt_sequential(model, dataloader, dev):
                 percdamp=args.percdamp, groupsize=groupsize, 
                 actorder=args.act_order, static_groups=args.static_groups, 
                 model_name=str(args.model).split("/")[-1], layer_name=f"{i}.{name}",
-                lut_quant=args.lut_eval, non_linear_quant=args.non_linear, columnwise=args.columnwise
+                lut_quant=args.lut_eval, non_linear_quant=args.non_linear, columnwise=args.columnwise, block_quant=args.block_quant
             )
             quantizers['model.decoder.layers.%d.%s' % (i, name)] = gptq[name].quantizer
             gptq[name].free()
@@ -332,28 +350,15 @@ def opt_eval(model, testenc, dev):
         nlls.append(neg_log_likelihood)
     ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * model.seqlen))
     print(ppl.item())
+    if args.nni:
+        nni.report_final_result(ppl.item())
     with open("./quant_bit/ppl.txt", "a") as f:
         f.write(f"model = {str(args.model).split('/')[-1]}, wbits = {args.wbits}, groupsize = {args.groupsize}, lut = {args.lut_eval}, nonLinear = {args.non_linear}, columnwise = {args.columnwise}   :   {ppl.item()}")
-        
         if args.non_linear:
             f.write(f"  ||  hyperbits = {args.hyperbits}, exploreBits = {args.exploreBits}, exploreSplit = {args.exploreSplit}")
         if args.lut_eval or args.columnwise:
             f.write(f"  ||  bcq_round = {args.bcq_round}")
             f.write(f"  ||  apot_nums = {args.apot_nums} use_bst = {args.use_bst}")
-
-        # if args.layermix:
-        #     import json
-        #     with open("./quant_bit/layerwise.json", "r") as f:
-        #         layer_wbit_dict = json.load(f)
-        #         model_name = str(args.model).split("/")[-1]
-        #         layer_wbit = layer_wbit_dict[model_name]
-        #     f.write(f"  ||  layerMix_wbit = {layer_wbit}")
-        
-        # if args.linearmix:
-        #     import json
-        #     with open("./quant_bit/linearwise.json", "r") as f:
-        #         linear_wbit = json.load(f)
-        #     f.write(f"  ||  linearMix_wbit = {linear_wbit}")
         f.write("\n")
 
     model.config.use_cache = use_cache
@@ -633,6 +638,10 @@ if __name__ == '__main__':
         help='Use columnwise - bcq - round to power of 2 - quantization to evaluate model. Can be used with new cuda kernel.'
     )
     parser.add_argument(
+        '--block_quant', action='store_true',
+        help='!!Only work when columnwise, Use blockwise (8 column for 1 quantize param) - bcq - round to power of 2 - quantization to evaluate model.'
+    )
+    parser.add_argument(
         '--use_bst', action='store_true',default=False,
         help='Use bst of get BinaryWeight'
     )
@@ -654,6 +663,15 @@ if __name__ == '__main__':
     parser.add_argument(
         '--quant_config', type=str, default=None,
         help='path for quantization config.'
+    )
+
+    parser.add_argument(
+        '--nni', action='store_true',
+        help='Whether to use nni search.'
+    )
+    parser.add_argument(
+        '--mixbit', type=float, default=2.2,
+        help='avg bit limit for mixbit search.'
     )
 
     args = parser.parse_args()
