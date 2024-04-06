@@ -166,7 +166,7 @@ if __name__ == '__main__':
         help='Whether to load from a safetensor file.'
     )
     parser.add_argument(
-        '--anaylse_method', type=str, default="w", choices=["w","wa","wh"],
+        '--anaylse_method', type=str, default="w", choices=["w","wa","wh","wn"],
         help='analysis sensitive on with value.'
     )
     parser.add_argument(
@@ -241,15 +241,24 @@ if __name__ == '__main__':
 
 
         if args.anaylse_method == "w":
-            column_layer_range = analysis_result[each]["columnWise"]["w"]["max"] - analysis_result[each]["columnWise"]["w"]["min"]
-            column_layer_std = analysis_result[each]["columnWise"]["w"]["std"]
+            layer_range = analysis_result[each]["max"]["w"] - analysis_result[each]["min"]["w"]
+            layer_std = analysis_result[each]["std"]["w"]
             
 
         elif args.anaylse_method == "wa":
-            column_layer_range = analysis_result[each]["columnWise"]["wa"]["max"] - analysis_result[each]["columnWise"]["wa"]["min"]
-            column_layer_std = analysis_result[each]["columnWise"]["wa"]["std"]
+            layer_range = analysis_result[each]["max"]["wa"] - analysis_result[each]["min"]["wa"]
+            layer_std = analysis_result[each]["std"]["wa"]
 
-        weight_score.append(torch.max(column_layer_range * column_layer_std))
+
+        elif args.anaylse_method == "wh":
+            layer_range = analysis_result[each]["max"]["wh"] - analysis_result[each]["min"]["wh"]
+            layer_std = analysis_result[each]["std"]["wh"]
+
+        elif args.anaylse_method == "wn":
+            layer_range = analysis_result[each]["max"]["wn"] - analysis_result[each]["min"]["wn"]
+            layer_std = analysis_result[each]["std"]["wn"]
+
+        weight_score.append(layer_range * layer_std)
         model_quant_config[each] = layer_quant_config
 
     _, weight_score_index = torch.sort(torch.tensor(weight_score))

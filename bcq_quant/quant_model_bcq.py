@@ -75,7 +75,7 @@ def parse_args():
 
 
 
-def quant_model(model, qbits:int = 4, group_size:int = 128):
+def quant_model(model, qbits:int = 4, group_size:int = 128, rounds=50):
     parameters  = model.state_dict()
     for name, module in model.named_children():
         if len(list(module.children())) > 0:
@@ -89,7 +89,7 @@ def quant_model(model, qbits:int = 4, group_size:int = 128):
             w_bcq = BCQParameter(original_weight)
             alpha, binary, binary_shape = w_bcq.compress(
                 do_packing=False, in_ch_wise=True, qbits=qbits,
-                rounds=50, group_size=group_size)
+                rounds=rounds, group_size=group_size)
             w_bcq.decompress(alpha, binary, binary_shape, do_packing=False, in_ch_wise=True)
             parameters[name + ".weight"] = w_bcq.data.clone().detach()
     model.load_state_dict(parameters)

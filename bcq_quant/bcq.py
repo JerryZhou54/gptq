@@ -26,7 +26,7 @@ def quantize(w, qbits, rounds=15, group_size=-1, transpose=False, exponent=0.0, 
     :param use_bst: if `use_bst` is True(default), the binary matrix is calculated using BST algorithm.
                     if `use_bst` is False, the binary matrix is calculated with greedy algorithm.
     '''
-    w_ = w.clone()
+    w_ = w.clone().float()
     w_ = w_.cuda()
 
     if transpose:

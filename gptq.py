@@ -60,7 +60,7 @@ class GPTQ:
         self.nsamples += tmp
         # inp = inp.float()
         inp = math.sqrt(2 / self.nsamples) * inp.float()
-        self.input = torch.mean(inp, 1)
+        self.input = inp
         # self.H += 2 / self.nsamples * inp.matmul(inp.t())
         self.H += inp.matmul(inp.t())
 
@@ -69,11 +69,17 @@ class GPTQ:
             "rowwise": {"w": {"max": None, "min": None, "mean": None, "std": None}, # analysis of weight
                         "wa" : { "max": None, "min": None, "mean": None, "std": None}, # analysis of weight * activation
                         "wh" : { "max": None, "min": None, "mean": None, "std": None}, # analysis of weight / hessian
+                        "wn" : { "max": None, "min": None, "mean": None, "std": None}, # analysis of weight * norm
             },
             "columnWise": {"w": {"max": None, "min": None, "mean": None, "std": None}, # analysis of weight
                         "wa" : { "max": None, "min": None, "mean": None, "std": None}, # analysis of weight * activation
                         "wh" : { "max": None, "min": None, "mean": None, "std": None}, # analysis of weight / hessian
+                        "wn" : { "max": None, "min": None, "mean": None, "std": None}, # analysis of weight * norm
             },
+            "mean": {"w": None, "wa": None, "wn": None, "wh": None}, # mean of weight, weight * activation, weight * norm, weight / hessian
+            "std": {"w": None, "wa": None, "wn": None, "wh": None}, # std of weight, weight * activation, weight * norm, weight / hessian
+            "max": {"w": None, "wa": None, "wn": None, "wh": None}, # max of weight, weight * activation, weight * norm, weight / hessian
+            "min": {"w": None, "wa": None, "wn": None, "wh": None}, # min of weight, weight * activation, weight * norm, weight / hessian
         }
         W = self.layer.weight.data.clone()
         W = W.float()
@@ -98,9 +104,14 @@ class GPTQ:
         result["columnWise"]["w"]["min"] = W.min(dim=0).values
         result["columnWise"]["w"]["mean"] = W.mean(dim=0)
         result["columnWise"]["w"]["std"] = W.std(dim=0)
+        result["mean"]["w"] = W.mean()
+        result["std"]["w"] = W.std()
+        result["max"]["w"] = W.max()
+        result["min"]["w"] = W.min()
 
         # analysis of weight * activation
-        weightAct = W * self.input.repeat(self.rows, 1) 
+        inputMean = torch.mean(self.input, 1)
+        weightAct = W * inputMean.repeat(self.rows, 1) 
         result["rowwise"]["wa"]["max"] = weightAct.max(dim=1).values
         result["rowwise"]["wa"]["min"] = weightAct.min(dim=1).values
         result["rowwise"]["wa"]["mean"] = weightAct.mean(dim=1)
@@ -109,17 +120,40 @@ class GPTQ:
         result["columnWise"]["wa"]["min"] = weightAct.min(dim=0).values
         result["columnWise"]["wa"]["mean"] = weightAct.mean(dim=0)
         result["columnWise"]["wa"]["std"] = weightAct.std(dim=0)
+        result["mean"]["wa"] = weightAct.mean()
+        result["std"]["wa"] = weightAct.std()
+        result["max"]["wa"] = weightAct.max()
+        result["min"]["wa"] = weightAct.min()
+
+        inputNorm = torch.norm(self.input, dim=1, p=2)
+        weightActNorm = W * inputNorm.repeat(self.rows, 1) 
+        result["rowwise"]["wn"]["max"] = weightActNorm.max(dim=1).values
+        result["rowwise"]["wn"]["min"] = weightActNorm.min(dim=1).values
+        result["rowwise"]["wn"]["mean"] = weightActNorm.mean(dim=1)
+        result["rowwise"]["wn"]["std"] = weightActNorm.std(dim=1)
+        result["columnWise"]["wn"]["max"] = weightActNorm.max(dim=0).values
+        result["columnWise"]["wn"]["min"] = weightActNorm.min(dim=0).values
+        result["columnWise"]["wn"]["mean"] = weightActNorm.mean(dim=0)
+        result["columnWise"]["wn"]["std"] = weightActNorm.std(dim=0)
+        result["mean"]["wn"] = weightActNorm.mean()
+        result["std"]["wn"] = weightActNorm.std()
+        result["max"]["wn"] = weightActNorm.max()
+        result["min"]["wn"] = weightActNorm.min()
 
 
         weightH = W / torch.diag(H).repeat(self.rows, 1) 
-        result["rowwise"]["wa"]["max"] = weightH.max(dim=1).values
-        result["rowwise"]["wa"]["min"] = weightH.min(dim=1).values
-        result["rowwise"]["wa"]["mean"] = weightH.mean(dim=1)
-        result["rowwise"]["wa"]["std"] = weightH.std(dim=1)
-        result["columnWise"]["wa"]["max"] = weightH.max(dim=0).values
-        result["columnWise"]["wa"]["min"] = weightH.min(dim=0).values
-        result["columnWise"]["wa"]["mean"] = weightH.mean(dim=0)
-        result["columnWise"]["wa"]["std"] = weightH.std(dim=0)
+        result["rowwise"]["wh"]["max"] = weightH.max(dim=1).values
+        result["rowwise"]["wh"]["min"] = weightH.min(dim=1).values
+        result["rowwise"]["wh"]["mean"] = weightH.mean(dim=1)
+        result["rowwise"]["wh"]["std"] = weightH.std(dim=1)
+        result["columnWise"]["wh"]["max"] = weightH.max(dim=0).values
+        result["columnWise"]["wh"]["min"] = weightH.min(dim=0).values
+        result["columnWise"]["wh"]["mean"] = weightH.mean(dim=0)
+        result["columnWise"]["wh"]["std"] = weightH.std(dim=0)
+        result["mean"]["wh"] = weightH.mean()
+        result["std"]["wh"] = weightH.std()
+        result["max"]["wh"] = weightH.max()
+        result["min"]["wh"] = weightH.min()
 
         return result
 
