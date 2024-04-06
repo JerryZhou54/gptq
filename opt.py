@@ -703,9 +703,7 @@ if __name__ == '__main__':
     if args.wbits < 16 and not args.nearest and not args.load and not args.lut_bench:
         tick = time.time()
         if args.bcq:
-            model = quant_model(model.to(DEV), qbits=args.wbits, group_size=args.groupsize)
-            for name, param in model.named_parameters():
-                print((name, torch.isnan(param).any()))
+            model = quant_model(model, qbits=args.wbits, group_size=args.groupsize, rounds=args.bcq_round)
         else:
             quantizers = opt_sequential(model, dataloader, DEV)
         print("full quantization time: ",time.time() - tick)
@@ -735,6 +733,7 @@ if __name__ == '__main__':
         opt_eval(model, testloader, DEV)
     # print(args.dataset)
     # opt_eval(model, testloader, DEV)
+    print(args.model)
 
     if args.save:
         opt_pack3(model, quantizers)

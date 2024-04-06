@@ -26,7 +26,7 @@ def quantize(w, qbits, rounds=15, group_size=-1, transpose=False, exponent=0.0, 
     :param use_bst: if `use_bst` is True(default), the binary matrix is calculated using BST algorithm.
                     if `use_bst` is False, the binary matrix is calculated with greedy algorithm.
     '''
-    w_ = w.clone()
+    w_ = w.clone().float()
     w_ = w_.cuda()
 
     if transpose:
@@ -76,8 +76,8 @@ def quantize(w, qbits, rounds=15, group_size=-1, transpose=False, exponent=0.0, 
     B = B.reshape([orig_shape[0], orig_shape[1] // group_size, group_size, qbits])
     alpha = alpha.reshape([orig_shape[0], orig_shape[1] // group_size, qbits])
 
-    B = B.to('cpu')
-    alpha = alpha.to('cpu')
+    # B = B.to('cpu')
+    # alpha = alpha.to('cpu')
     # torch.cuda.empty_cache()
 
     return ret, B, alpha, (wf != 0.0)

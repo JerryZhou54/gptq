@@ -218,3 +218,17 @@ model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, col
 model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
 model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
 model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   69.8126220703125
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   69.8126220703125
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   69.8126220703125
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   69.8126220703125
+model = opt-350m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   43.40876007080078
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   69.8126220703125
+model = opt-350m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   43.40876007080078
+model = opt-1.3b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   68.56075286865234
+model = opt-1.3b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   68.56075286865234
+model = opt-1.3b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   68.56075286865234
+model = opt-1.3b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   68.56075286865234
+model = opt-6.7b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   17.44866943359375
+model = opt-13b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   12.50248908996582
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   38.25362014770508  ||  bcq_round = 5  ||  apot_nums = 3 use_bst = True
