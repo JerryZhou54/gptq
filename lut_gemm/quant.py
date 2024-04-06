@@ -17,9 +17,9 @@ class LutLinear(nn.Module):
         self.M = 1
         self.K = infeatures
         self.N = outfeatures
-        self.group_size = group_size
+        self.group_size = group_size if group_size > 0 else infeatures
         self.wbit = wbit
-        self.num_groups = self.K // group_size
+        self.num_groups = self.K // self.group_size
 
         self.register_buffer('binaryWeight', torch.randint(-2147483648, 2147483647, (self.K //32 , wbit, self.N), dtype=torch.int32, device="cuda"))
         self.register_buffer('alpha', torch.randn((self.num_groups, wbit, self.N), dtype=torch.half, device="cuda"))
