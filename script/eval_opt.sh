@@ -18,8 +18,8 @@
     # --benchmark 128 \
     # --lut_bench
 
-CUDA_VISIBLE_DEVICES=1 python opt.py \
-    facebook/opt-13b \
+CUDA_VISIBLE_DEVICES=6 python opt.py \
+    facebook/opt-125m \
     wikitext2 \
     --wbits 3 \
     --groupsize -1 

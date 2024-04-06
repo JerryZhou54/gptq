@@ -9,7 +9,7 @@ from modelutils import *
 from quant import *
 
 from bcq_quant.quant_model_bcq import quant_model
-# from lut_gemm.quant import load_lut
+from lut_gemm.quant import load_lut
 from bcq_quant.quantizer import BCQuantizer
 from nonLinear_quant import NonLinearQuantizer
 from plot_activation import plot_distribution
@@ -703,7 +703,9 @@ if __name__ == '__main__':
     if args.wbits < 16 and not args.nearest and not args.load and not args.lut_bench:
         tick = time.time()
         if args.bcq:
-            model = quant_model(model, qbits=args.wbits, group_size=args.groupsize)
+            model = quant_model(model.to(DEV), qbits=args.wbits, group_size=args.groupsize)
+            for name, param in model.named_parameters():
+                print((name, torch.isnan(param).any()))
         else:
             quantizers = opt_sequential(model, dataloader, DEV)
         print("full quantization time: ",time.time() - tick)
@@ -722,7 +724,7 @@ if __name__ == '__main__':
     if args.load or args.lut_bench:
         exit()
 
-    datasets = ['wikitext2', 'ptb'] 
+    datasets = ['wikitext2'] 
     if args.new_eval:
       datasets = ['wikitext2', 'ptb-new', 'c4-new']
     for dataset in datasets: 

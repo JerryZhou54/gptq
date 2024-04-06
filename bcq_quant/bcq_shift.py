@@ -98,6 +98,7 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
                     if `use_bst` is False, the binary matrix is calculated with greedy algorithm.
     '''
     # w_ = w.clone()
+    dtype = w.dtype
     w_ = w
     w_ = w_.cuda()
 
@@ -110,7 +111,7 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     w_ = w_.view([-1, group_size])
  
     # init weighted
-    wf = torch.ones(w_.shape, dtype=torch.float32, device=w_.device)
+    wf = torch.ones(w_.shape, dtype=dtype, device=w_.device)
 
     # if wf is None:
     #     w_abs = w_.abs()
@@ -157,7 +158,7 @@ def quantize_shift(w, qbits, rounds=15, group_size=-1, transpose=False, exponent
     alpha = alpha.reshape([orig_shape[0], orig_shape[1] // group_size, qbits])
     # scale = scale.reshape([orig_shape[0], orig_shape[1] // group_size])
 
-    B = B.to('cpu')
+    # B = B.to('cpu')
     # alpha = alpha.to('cpu')
 
     torch.cuda.empty_cache()
@@ -197,7 +198,7 @@ def greedy_mean_torch(w, n_bits=1, wf=None, q_bias=None, scale=None, shift = Fal
     return w_hat, B, Alpha
 
 def refine_mean_torch(w, w_hat, B, Alpha, wf=None, use_bst=True, apot_nums=1):
-    w = w.float()
+    # w = w.float()
     d1, d2 = w.shape
     with torch.no_grad():
         n_bits = B.shape[-1]
@@ -239,10 +240,11 @@ def list_binary_vecs(n):
 
 def find_B_torch(w, Alpha):
     '''Find optimal quantization assignment via binary search (torch)'''
+    dtype = Alpha.cpu().numpy().dtype
     n_bits = Alpha.shape[-1]
 
     ListBinaryVecs = list_binary_vecs(n_bits)
-    bin_mat = torch.from_numpy(np.vstack(ListBinaryVecs[n_bits]).astype(np.float32)).to(w.device)
+    bin_mat = torch.from_numpy(np.vstack(ListBinaryVecs[n_bits]).astype(dtype)).to(w.device)
 
     d1, d2 = w.shape
     row_inds = torch.arange(d1, dtype=torch.long).view(d1, 1).repeat([1, d2]).view(-1)

@@ -209,3 +209,12 @@ model = opt-125m, wbits = 2, groupsize = -1, lut = False, nonLinear = False, col
 model = opt-125m, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   638.6619873046875  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
 model = opt-350m, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   11518.08984375  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
 model = opt-350m, wbits = 2, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   11269.572265625  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   46.109859466552734
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   nan
