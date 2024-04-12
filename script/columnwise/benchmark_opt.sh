@@ -3,5 +3,6 @@ CUDA_VISIBLE_DEVICES=6 python opt.py \
     wikitext2 \
     --wbits 3 \
     --groupsize -1 \
+		--columnwise \
 		--lut_bench \
 		--benchmark 128 \

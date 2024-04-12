@@ -236,3 +236,23 @@ model = opt-13b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, colu
 model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   38.25362014770508  ||  bcq_round = 5  ||  apot_nums = 3 use_bst = True
 model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   38.531070709228516  ||  bcq_round = 10  ||  apot_nums = 3 use_bst = True
 model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   37.280521392822266  ||  bcq_round = 20  ||  apot_nums = 3 use_bst = True
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   37.222320556640625  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-1.3b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   18.9964542388916  ||  bcq_round = 5  ||  apot_nums = 3 use_bst = True
+model = opt-1.3b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   17.79517364501953  ||  bcq_round = 10  ||  apot_nums = 3 use_bst = True
+model = opt-350m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   27.71845054626465  ||  bcq_round = 10  ||  apot_nums = 3 use_bst = True
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   69.02622985839844  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   75.44963836669922  ||  bcq_round = 20  ||  apot_nums = 3 use_bst = True
+model = opt-6.7b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   11.810643196105957  ||  bcq_round = 10  ||  apot_nums = 3 use_bst = True
+model = opt-1.3b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   21.975332260131836  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-6.7b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   12.699905395507812  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-13b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   10.69051456451416  ||  bcq_round = 10  ||  apot_nums = 3 use_bst = True
+model = opt-13b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   12.441505432128906  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-125m, wbits = 3, groupsize = 96, lut = False, nonLinear = False, columnwise = True   :   54.81795883178711  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-125m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   52.5746955871582  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-350m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   28.04479217529297  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-30b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = False   :   139.96693420410156
+model = opt-350m, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   33.010746002197266  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-30b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   10.134081840515137  ||  bcq_round = 20  ||  apot_nums = 3 use_bst = True
+model = opt-1.3b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   19.302467346191406  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-6.7b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   12.120111465454102  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True
+model = opt-13b, wbits = 3, groupsize = -1, lut = False, nonLinear = False, columnwise = True   :   11.280885696411133  ||  bcq_round = 50  ||  apot_nums = 3 use_bst = True

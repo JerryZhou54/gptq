@@ -400,7 +400,7 @@ def load_quant3(model, checkpoint):
     make_quant3(model, layers, faster=args.faster_kernel)
 
     print('Loading model ...')
-    model.load_state_dict(torch.load(checkpoint))
+    #model.load_state_dict(torch.load(checkpoint))
     model.seqlen = model.config.max_position_embeddings
     print('Done.')
 
@@ -679,7 +679,7 @@ if __name__ == '__main__':
     if args.load:
         model = load_quant3(args.model, args.load)
     elif args.lut_bench:
-        model = load_lut(args.model, args.load, wbit=args.wbits, group_size=args.groupsize)
+        model = load_lut(args.model, args.load, wbit=args.wbits, group_size=args.groupsize, columnwise=args.columnwise)
     else:
         model = get_opt(args.model)
         model.eval()

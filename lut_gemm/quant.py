@@ -87,18 +87,82 @@ class LutLinear(nn.Module):
             self.K, self.N, self.bias is not None, self.wbit, self.group_size
         )
 
-def make_lut(module, names, name='', wbit = 3, group_size = 128):
-    if isinstance(module, LutLinear):
+class LutLinearColumnwise(nn.Module):
+    def __init__(self, infeatures:int,
+                        outfeatures:int,
+                        group_size:int = 128,
+                        wbit:int = 3,
+                        bias=None):
+
+        super().__init__()
+
+        self.M = 1
+        self.K = infeatures
+        self.N = outfeatures
+        self.group_size = group_size if group_size > 0 else infeatures
+        self.wbit = wbit
+        self.num_groups = self.K // self.group_size
+
+        self.register_buffer('binaryWeight', torch.randint(-2147483648, 2147483647, (self.K //32 , wbit, self.N), dtype=torch.int32, device="cuda"))
+        self.register_buffer('alpha', torch.randn((self.num_groups, wbit, self.N), dtype=torch.half, device="cuda"))
+        self.register_buffer('scale', torch.randn((self.num_groups, self.N), dtype=torch.half, device="cuda"))
+
+        self.bWeight_cal = None
+        self.alpha_cal = None
+        self.q_bias_cal = None
+
+        # self.bias = None
+        self.bias = bias
+    # def pack(self, linear, qbit = 3, group_size = 128,):
+    #     # TODO: do quantization here
+    #     self.bias = linear.bias.clone() if linear.bias is not None
+        
+    #     _, intweight, alpha, _, scale = quantize_shift(linear.weight.data, qbits=qbit, group_size=group_size)
+
+    def parsing(self):
+        # device = self.binaryWeight.device
+        # assert device != torch.device("cpu"), "Device should be cuda"
+        # device = int(str(device).split(":")[-1])
+        # self.bWeight_cal, self.alpha_cal, self.q_bias_cal = lutgemm.parsing(self.binaryWeight, self.alpha.view(-1), self.K, self.N, self.wbit, False, self.num_groups, self.q_bias.view(-1), device)
+
+        self.bWeight_cal, self.alpha_cal, self.q_bias_cal = self.binaryWeight.view(-1), self.alpha.view(-1), self.q_bias.view(-1)
+
+    def forward(self, x):
+        #x_dims = x.dim()
+        #print(x.size(), self.K)
+        #if x.dim() > 2:
+        #    x = x[0]
+        assert x.size(-1) == self.K
+        out_shape = list(x.shape)
+        out_shape[-1] = self.N
+        output = x.new_zeros(out_shape)
+        #lutgemm.lutgemm_compute_shift_scale_shift1() 
+        #lutgemm_compute_shift_scale
+        lutgemm.lutgemm_compute_shift_scale_shift1(output, self.binaryWeight, self.alpha, \
+        x, self.N, self.K, self.wbit, self.num_groups) #support batch
+        #if x_dims > 2:
+        #    output = output.unsqueeze(0)
+        #output = output.reshape(x_shape)
+        #print("out: ", output.size(), x.size())
+        return output 
+
+def make_lut(module, names, name='', wbit = 3, group_size = 128, columnwise=False):
+    if columnwise and isinstance(module, LutLinearColumnwise):
+        return
+    if not columnwise and isinstance(module, LutLinear):
         return
     for attr in dir(module):
         tmp = getattr(module, attr)
         name1 = name + '.' + attr if name != '' else attr
         if name1 in names:
-            setattr(module, attr, LutLinear(tmp.in_features, tmp.out_features, group_size, wbit))
+            if columnwise:
+                setattr(module, attr, LutLinearColumnwise(tmp.in_features, tmp.out_features, group_size, wbit))
+            else:
+                setattr(module, attr, LutLinear(tmp.in_features, tmp.out_features, group_size, wbit))
     for name1, child in module.named_children():
-        make_lut(child, names, name + '.' + name1 if name != '' else name1, wbit, group_size)
+        make_lut(child, names, name + '.' + name1 if name != '' else name1, wbit, group_size, columnwise)
 
-def load_lut(model, checkpoint='', wbit = 3, group_size = 128):
+def load_lut(model, checkpoint='', wbit = 3, group_size = 128, columnwise=False):
 
     def find_layers(module, layers=[nn.Conv2d, nn.Linear], name=''):
         if type(module) in layers:
@@ -131,7 +195,7 @@ def load_lut(model, checkpoint='', wbit = 3, group_size = 128):
         if name in layers:
             del layers[name]
     print("before make")
-    make_lut(model, layers, wbit = wbit, group_size = group_size)
+    make_lut(model, layers, wbit = wbit, group_size = group_size, columnwise=columnwise)
     print("make done")
     if checkpoint != '':
         print('Loading model ...')
